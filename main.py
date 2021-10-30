@@ -35,8 +35,9 @@ def log_exercise(update, context, exercise=""):
             if score < 0:
                 raise ValueError
             db.insert_entry(tele_id, exercise, score)
+            update.message.reply_text(f"Success! Recorded {score} km for {user}.")
         except ValueError:
-            update.message.reply_text(f"Input is wrong, please try again. Record 0 km to exit.")
+            update.message.reply_text(f"Input is wrong, please try again or record 0 km to exit.")
             return "LOG_" + exercise
 
     else:
@@ -45,11 +46,11 @@ def log_exercise(update, context, exercise=""):
             if score < 0:
                 raise ValueError
             db.insert_entry(tele_id, exercise, score)
+            update.message.reply_text(f"Success! Recorded {score} reps for {user}.")
         except ValueError:
-            update.message.reply_text(f"Input is wrong, please try again. Record 0 reps to exit.")
+            update.message.reply_text(f"Input is wrong, please try again or record 0 reps to exit.")
             return "LOG_" + exercise
 
-    update.message.reply_text(f"Success! Recorded {score} reps for {user}.")
     return ConversationHandler.END
 
 
@@ -75,9 +76,24 @@ def get_one(update, context):
 
 
 def choose_exercise(update, context):
+
+    keyboard = [
+        [InlineKeyboardButton("Pull ups", callback_data='PU'),
+         InlineKeyboardButton("Core", callback_data='C'),
+         InlineKeyboardButton("Run", callback_data='R')],
+        [InlineKeyboardButton("Back", callback_data='back')]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    update.message.reply_text(
+        text="Choose exercise: ", reply_markup=reply_markup
+    )
+
+    return "selected_exercise"
+
+
+def choose_exercise_query(update, context):
     query = update.callback_query
     query.answer()
-
     keyboard = [
         [InlineKeyboardButton("Pull ups", callback_data='PU'),
          InlineKeyboardButton("Core", callback_data='C'),
@@ -91,7 +107,6 @@ def choose_exercise(update, context):
 
     return "selected_exercise"
 
-
 def main() -> None:
     """Run the bot."""
     # Create the Updater and pass it your bot's token.
@@ -103,7 +118,8 @@ def main() -> None:
     dispatcher.add_handler(CommandHandler("start", start))
     dispatcher.add_handler(
         ConversationHandler(
-            entry_points=[CallbackQueryHandler(choose_exercise, pattern="track_exercise")],
+            entry_points=[CommandHandler("track_exercise", choose_exercise),
+                          CallbackQueryHandler(choose_exercise_query, pattern="track_exercise")],
             states={
                 "selected_exercise": [
                     CallbackQueryHandler(partial(ask_exercise, exercise="PU"), pattern='PU'),
