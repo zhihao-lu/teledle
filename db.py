@@ -43,7 +43,7 @@ class Database:
 
     def insert_entry(self, name, tele, exercise, count, exercises=("Core", "Pull Ups", "Run")):
         d = datetime.datetime.now()
-        w = d.isocalendar().week
+        w = d.isocalendar()[1]
         self.cur.execute("SELECT DISTINCT tele from log WHERE week = ?", (w,))
         names = self.cur.fetchall()
 
@@ -92,7 +92,7 @@ class Database:
 
             return s
 
-        cweek = datetime.datetime.now().isocalendar().week
+        cweek = datetime.datetime.now().isocalendar()[1]
 
         all_time_query = "SELECT a.name, a.exercise, a.count, RANK() OVER(PARTITION BY exercise ORDER BY count DESC) " \
                          "rank FROM (SELECT name, exercise, SUM(count) count FROM log GROUP BY name, exercise) a "

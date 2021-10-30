@@ -135,17 +135,17 @@ def leaderboard(update, context):
     query = update.callback_query
     query.answer()
 
-    week, all_time = db.get_leaderboards()
+    w, all_time = db.get_leaderboards()
 
     all_time = "All time leaders \n" + all_time
-    week = "This week's leaders \n" + week + "\n \n"
+    w = "This week's leaders \n" + w + "\n \n"
 
     keyboard = [
         [InlineKeyboardButton("Back", callback_data='return_menu')]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    query.edit_message_text(week + all_time, reply_markup=reply_markup)
+    query.edit_message_text(w + all_time, reply_markup=reply_markup)
 
     return ConversationHandler.END
 
