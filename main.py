@@ -15,6 +15,7 @@ db.create_tables()
 keyboard = [
     [InlineKeyboardButton("Track Exercise", callback_data='track_exercise')],
     [InlineKeyboardButton("Retrieve", callback_data='retrieve')],
+    [InlineKeyboardButton("Retrieve", callback_data='leaderboard')]
 ]
 main_keyboard = InlineKeyboardMarkup(keyboard)
 
@@ -34,8 +35,8 @@ def show_back_home(update, context):
 
 
 def log_exercise(update, context, exercise=""):
-    user = update.message.from_user.first_name
-    tele_id = update.message.from_user.username
+    name = update.message.from_user.first_name
+    tele = update.message.from_user.username
     score = update.message.text
 
     keyboard = [
@@ -44,27 +45,27 @@ def log_exercise(update, context, exercise=""):
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    if exercise == "R":
+    if exercise == "Run":
         try:
             score = float(score)
             if score < 0:
                 raise ValueError
-            db.insert_entry(tele_id, exercise, score)
-            update.message.reply_text(f"Success! Recorded {score} km for {user}.", reply_markup=reply_markup)
+            db.insert_entry(name, tele, exercise, score)
+            update.message.reply_text(f"Success! Recorded {score} km for {name}.", reply_markup=reply_markup)
         except ValueError:
             update.message.reply_text(f"Input is wrong, please try again or record 0 km to exit.")
-            return "LOG_" + exercise
+            return "LOG_" + "R"
 
     else:
         try:
             score = int(score)
             if score < 0:
                 raise ValueError
-            db.insert_entry(tele_id, exercise, score)
-            update.message.reply_text(f"Success! Recorded {score} reps for {user}.", reply_markup=reply_markup)
+            db.insert_entry(name, tele, exercise, score)
+            update.message.reply_text(f"Success! Recorded {score} reps for {name}.", reply_markup=reply_markup)
         except ValueError:
             update.message.reply_text(f"Input is wrong, please try again or record 0 reps to exit.")
-            return "LOG_" + exercise
+            return "LOG_" + exercise[0]
     return ConversationHandler.END
 
 
@@ -72,9 +73,9 @@ def ask_exercise(update, context, exercise=""):
     query = update.callback_query
     query.answer()
 
-    if exercise == "PU":
+    if exercise == "P":
         query.edit_message_text("Pull ups selected. Please enter how many pull ups you have done:")
-        return "LOG_PU"
+        return "LOG_P"
 
     elif exercise == "C":
         query.edit_message_text("Core selected. Please enter how many you have done:")
@@ -90,7 +91,7 @@ def get_one(update, context):
 
 def choose_exercise(update, context):
     keyboard = [
-        [InlineKeyboardButton("Pull ups", callback_data='PU'),
+        [InlineKeyboardButton("Pull ups", callback_data='P'),
          InlineKeyboardButton("Core", callback_data='C'),
          InlineKeyboardButton("Run", callback_data='R')],
         [InlineKeyboardButton("Back", callback_data='return_menu')]
@@ -107,7 +108,7 @@ def choose_exercise_query(update, context):
     query = update.callback_query
     query.answer()
     keyboard = [
-        [InlineKeyboardButton("Pull ups", callback_data='PU'),
+        [InlineKeyboardButton("Pull ups", callback_data='P'),
          InlineKeyboardButton("Core", callback_data='C'),
          InlineKeyboardButton("Run", callback_data='R')],
         [InlineKeyboardButton("Back", callback_data='back')]
@@ -120,7 +121,13 @@ def choose_exercise_query(update, context):
     return "selected_exercise"
 
 
-def main() -> None:
+def leaderboard(update, context):
+    query = update.callback_query
+    query.answer()
+
+
+
+def main():
     """Run the bot."""
     # Create the Updater and pass it your bot's token.
     updater = Updater(os.environ['TOKEN'])
@@ -130,19 +137,20 @@ def main() -> None:
 
     dispatcher.add_handler(CommandHandler("start", start))
     dispatcher.add_handler(CallbackQueryHandler(show_back_home, pattern="return_menu"))
+    dispatcher.add_handler(CallbackQueryHandler(leaderboard, pattern="leaderboard"))
     dispatcher.add_handler(
         ConversationHandler(
             entry_points=[CommandHandler("track_exercise", choose_exercise),
                           CallbackQueryHandler(choose_exercise_query, pattern="track_exercise")],
             states={
                 "selected_exercise": [
-                    CallbackQueryHandler(partial(ask_exercise, exercise="PU"), pattern='PU'),
+                    CallbackQueryHandler(partial(ask_exercise, exercise="P"), pattern='P'),
                     CallbackQueryHandler(partial(ask_exercise, exercise="C"), pattern='C'),
                     CallbackQueryHandler(partial(ask_exercise, exercise="R"), pattern='R'),
                 ],
-                "LOG_PU": [MessageHandler(Filters.all, callback=partial(log_exercise, exercise="PU"))],
-                "LOG_C": [MessageHandler(Filters.all, callback=partial(log_exercise, exercise="C"))],
-                "LOG_R": [MessageHandler(Filters.all, callback=partial(log_exercise, exercise="R"))],
+                "LOG_P": [MessageHandler(Filters.all, callback=partial(log_exercise, exercise="Pull Ups"))],
+                "LOG_C": [MessageHandler(Filters.all, callback=partial(log_exercise, exercise="Core"))],
+                "LOG_R": [MessageHandler(Filters.all, callback=partial(log_exercise, exercise="Run"))],
                 "choose_exercise": [CallbackQueryHandler(choose_exercise_query, pattern="track_exercise")]
             },
             fallbacks=[CommandHandler('start', start)],
@@ -150,9 +158,9 @@ def main() -> None:
         )
     )
 
-    # Add ConversationHandler to dispatcher that will be used for handling updates
+
     dispatcher.add_handler(CommandHandler("add_entry", log_exercise))
-    # updater.dispatcher.add_handler(CallbackQueryHandler(button))
+
     dispatcher.add_handler(CommandHandler("get_one", get_one))
     # Start the Bot
     updater.start_polling()
