@@ -19,7 +19,7 @@ def start(update: Update, context: CallbackContext) -> None:
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     update.message.reply_text('Please choose:', reply_markup=reply_markup)
-
+    return "from_start"
 
 
     
@@ -48,49 +48,69 @@ def log(update: Update, context: CallbackContext) -> None:
 def get_one(update: Update, context: CallbackContext) -> None:
   query = update.callback_query
   query.answer()
-  update.message.reply_text(db.get_all())
+  query.edit_message_text(db.get_all())
 
-def track_exercise(update: Update, context: CallbackContext):
+def choose_exercise(update: Update, context: CallbackContext):
   query = update.callback_query
   query.answer()
 
   keyboard = [
     [InlineKeyboardButton("Pull ups", callback_data='PU'),
     InlineKeyboardButton("Core", callback_data='C'),
-    InlineKeyboardButton("Run", callback_data='R')]
+    InlineKeyboardButton("Run", callback_data='R')],
+    [InlineKeyboardButton("Back", callback_data='back')]
   ]
   reply_markup = InlineKeyboardMarkup(keyboard)
   query.edit_message_text(
     text="Choose exercise: ", reply_markup=reply_markup
   )
 
-def main():
+  return "selected_exercise"
 
-    updater = Updater(os.getenv("TOKEN"))
+def main() -> None:
+    """Run the bot."""
+    # Create the Updater and pass it your bot's token.
+    updater = Updater(os.environ['TOKEN'])
+
+
+    # Get the dispatcher to register handlers
     dispatcher = updater.dispatcher
 
-    conv_handler = ConversationHandler(
-      entry_points=[CommandHandler('start', start)],
-      states={
-        "1": [CallbackQueryHandler(track_exercise)],
-        "2": [CallbackQueryHandler(get_one)]
-          },
-      fallbacks=[CommandHandler('start', start)],
+    # Setup conversation handler with the states FIRST and SECOND
+    # Use the pattern parameter to pass CallbackQueries with specific
+    # data pattern to the corresponding handlers.
+    # ^ means "start of line/string"
+    # $ means "end of line/string"
+    # So ^ABC$ will only allow 'ABC'
+    dispatcher.add_handler(ConversationHandler(
+        entry_points=[CommandHandler('start', start)],
+        states={
+            "from_start": [
+                CallbackQueryHandler(choose_exercise, pattern='1'),
+                CallbackQueryHandler(get_one, pattern='2')
+            ],
+            "selected_exercise": [
+                MessageHandler(choose_exercise, pattern='1'),
+                MessageHandler(get_one, pattern='2')
+            ]
+        },
+        fallbacks=[CommandHandler('start', start)],
+      per_message=True
+    )
     )
 
-
-    # dispatcher.add_handler(CommandHandler("start", start))
-    # dispatcher.add_handler(CommandHandler("help", help_command))
+    # Add ConversationHandler to dispatcher that will be used for handling updates
+    conv_handler)
     dispatcher.add_handler(CommandHandler("add_entry", log))
     # updater.dispatcher.add_handler(CallbackQueryHandler(button))
     dispatcher.add_handler(CommandHandler("get_one", get_one))
-    # dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, log))
-    dispatcher.add_handler(conv_handler)
-
+    # Start the Bot
     updater.start_polling()
 
+    # Run the bot until you press Ctrl-C or the process receives SIGINT,
+    # SIGTERM or SIGABRT. This should be used most of the time, since
+    # start_polling() is non-blocking and will stop the bot gracefully.
     updater.idle()
-
 
 if __name__ == '__main__':
     main()
