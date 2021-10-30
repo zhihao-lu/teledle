@@ -30,13 +30,13 @@ class Database:
             print(e)
             return e
 
-    def insert_entry(self, name, exercise, count, d, date_format=""):
-        # d = datetime.strptime(d, date_format)
-        # week = datetime.date(d).isocalendar().week
+    def insert_entry(self, name, exercise, count):
+        d = datetime.datetime.now()
+        week = d.isocalendar().week
         try:
 
             self.cur.execute("INSERT INTO log(name, exercise, count, date, week) VALUES(?,?,?,?,?)",
-                             (name, exercise, count, d, 1))
+                             (name, exercise, count, d, week))
             self.con.commit()
             return True
         except Exception as e:
@@ -44,6 +44,6 @@ class Database:
             return e
     
     def get_all(self):
-      self.cur.execute("SELECT * FROM log LIMIT 1")
+      self.cur.execute("SELECT * FROM log ORDER BY ROWID DESC LIMIT 1")
       a = self.cur.fetchall()
       return a

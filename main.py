@@ -1,5 +1,4 @@
 import os
-# Import necessary libraries:
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext, CallbackQueryHandler, \
     ConversationHandler
@@ -7,6 +6,10 @@ from db import Database
 from functools import partial
 db = Database()
 db.create_tables()
+
+# TO DO
+# multiple people can use at once
+# admin mode
 
 
 def start(update: Update, context):
@@ -21,33 +24,34 @@ def start(update: Update, context):
     update.message.reply_text('Please choose:', reply_markup=reply_markup)
 
 
-
-def help_command(update: Update, context):
-    update.message.reply_text("shape is: ")
-
-
-'''
-def button(update: Update, context: CallbackContext) -> None:
-    """Parses the CallbackQuery and updates the message text."""
-    query = update.callback_query
-
-    # CallbackQueries need to be answered, even if no notification to the user is needed
-    # Some clients may have trouble otherwise. See https://core.telegram.org/bots/api#callbackquery
-    query.answer()
-    if query.data == "2":
-      a = db.get_all()
-
-    query.edit_message_text(text=a)
-'''
 def log_exercise(update, context, exercise=""):
     user = update.message.from_user.first_name
     tele_id = update.message.from_user.username
     score = update.message.text
 
+    if exercise == "R":
+        try:
+            score = float(score)
+            if score < 0:
+                raise ValueError
+            db.insert_entry(tele_id, exercise, score)
+        except ValueError:
+            update.message.reply_text(f"Input is wrong, please try again. Record 0 km to exit.")
+            return "LOG_" + exercise
 
-    db.insert_entry(user, exercise, 3, 2)
+    else:
+        try:
+            score = int(score)
+            if score < 0:
+                raise ValueError
+            db.insert_entry(tele_id, exercise, score)
+        except ValueError:
+            update.message.reply_text(f"Input is wrong, please try again. Record 0 reps to exit.")
+            return "LOG_" + exercise
+
     update.message.reply_text(f"Success! Recorded {score} reps for {user}.")
     return ConversationHandler.END
+
 
 def ask_exercise(update, context, exercise=""):
     query = update.callback_query
@@ -66,12 +70,8 @@ def ask_exercise(update, context, exercise=""):
         return "LOG_R"
 
 
-
-
 def get_one(update, context):
-    query = update.callback_query
-    query.answer()
-    query.edit_message_text(db.get_all())
+    update.message.reply_text(db.get_all())
 
 
 def choose_exercise(update, context):
@@ -110,9 +110,9 @@ def main() -> None:
                     CallbackQueryHandler(partial(ask_exercise, exercise="C"), pattern='C'),
                     CallbackQueryHandler(partial(ask_exercise, exercise="R"), pattern='R'),
                 ],
-                "LOG_PU": [MessageHandler(Filters.text, partial(log_exercise, exercise="PU"))],
-                "LOG_C": [MessageHandler(Filters.text, partial(log_exercise, exercise="C"))],
-                "LOG_R": [MessageHandler(Filters.text, partial(log_exercise, exercise="R"))]
+                "LOG_PU": [MessageHandler(Filters.all, callback=partial(log_exercise, exercise="PU"))],
+                "LOG_C": [MessageHandler(Filters.all, callback=partial(log_exercise, exercise="C"))],
+                "LOG_R": [MessageHandler(Filters.all, callback=partial(log_exercise, exercise="R"))]
             },
             fallbacks=[CommandHandler('start', start)],
             per_message=False
