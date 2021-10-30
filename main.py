@@ -4,10 +4,10 @@
 
 import os
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext, CallbackQueryHandler, \
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackQueryHandler, \
     ConversationHandler
 from db import Database
-from functools import partial
+from functools import partial, wraps
 
 db = Database()
 db.create_tables()
@@ -15,9 +15,22 @@ db.create_tables()
 keyboard = [
     [InlineKeyboardButton("Track Exercise", callback_data='track_exercise')],
     [InlineKeyboardButton("Retrieve", callback_data='retrieve')],
-    [InlineKeyboardButton("Leaderboard", callback_data='leaderboard')]
+    [InlineKeyboardButton("Leaderboards", callback_data='leaderboard')]
 ]
 main_keyboard = InlineKeyboardMarkup(keyboard)
+
+LIST_OF_ADMINS = [148721731]
+
+
+def restricted(func):
+    @wraps(func)
+    def wrapped(update, context, *args, **kwargs):
+        user_id = update.effective_user.id
+        if user_id not in LIST_OF_ADMINS:
+            print("Unauthorized access denied for {}.".format(user_id))
+            return
+        return func(update, context, *args, **kwargs)
+    return wrapped
 
 
 def start(update: Update, context):
@@ -85,10 +98,6 @@ def ask_exercise(update, context, exercise=""):
         return "LOG_R"
 
 
-def get_one(update, context):
-    update.message.reply_text(db.get_all())
-
-
 def choose_exercise(update, context):
     keyboard = [
         [InlineKeyboardButton("Pull ups", callback_data='P'),
@@ -140,6 +149,17 @@ def leaderboard(update, context):
     return ConversationHandler.END
 
 
+# Admin functions
+@restricted
+def get_one(update, context):
+    update.message.reply_text(db.get_all())
+
+
+@restricted
+def drop(update, context):
+    db.drop_table("")
+
+
 def main():
     """Run the bot."""
     # Create the Updater and pass it your bot's token.
@@ -151,6 +171,7 @@ def main():
     dispatcher.add_handler(CommandHandler("start", start))
     dispatcher.add_handler(CallbackQueryHandler(show_back_home, pattern="return_menu"))
     dispatcher.add_handler(CallbackQueryHandler(leaderboard, pattern="leaderboard"))
+    dispatcher.add_handler(CommandHandler("add_entry", log_exercise))
     dispatcher.add_handler(
         ConversationHandler(
             entry_points=[CommandHandler("track_exercise", choose_exercise),
@@ -171,10 +192,10 @@ def main():
         )
     )
 
-
-    dispatcher.add_handler(CommandHandler("add_entry", log_exercise))
-
+    # Admin commands
     dispatcher.add_handler(CommandHandler("get_one", get_one))
+    dispatcher.add_handler(CommandHandler("drop", drop))
+
     # Start the Bot
     updater.start_polling()
 

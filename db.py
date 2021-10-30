@@ -41,10 +41,18 @@ class Database:
             print(e)
             return e
 
-    def insert_entry(self, name, tele, exercise, count):
+    def insert_entry(self, name, tele, exercise, count, exercises=("Core", "Pull Ups", "Run")):
         d = datetime.datetime.now()
         w = d.isocalendar().week
+        self.cur.execute("SELECT DISTINCT tele from log WHERE week = ?", (w,))
+        names = self.cur.fetchall()
+
         try:
+            if tele not in names:
+                for e in exercises:
+                    if exercise != e:
+                        self.cur.execute("INSERT INTO log(name, exercise, count, date, week, tele) VALUES(?,?,?,?,?,?)",
+                                         (name, e, 0, d, w, tele))
 
             self.cur.execute("INSERT INTO log(name, exercise, count, date, week, tele) VALUES(?,?,?,?,?,?)",
                              (name, exercise, count, d, w, tele))
@@ -71,7 +79,7 @@ class Database:
                 out = [participant]
                 ranking = prod([x[3] for x in lst])
                 for entry in lst:
-                    out.append(str(round(entry[2],1)))
+                    out.append(str(round(entry[2], 1)))
                 out.append(ranking)
                 output_list.append(out)
 
@@ -86,11 +94,10 @@ class Database:
 
         cweek = datetime.datetime.now().isocalendar().week
 
-        all_time_query = "SELECT a.name, a.exercise, a.count, RANK() OVER(PARTITION BY exercise ORDER BY count) rank " \
-                         "FROM (SELECT name, exercise, SUM(count) count " \
-                         "FROM log GROUP BY name, exercise) a"
+        all_time_query = "SELECT a.name, a.exercise, a.count, RANK() OVER(PARTITION BY exercise ORDER BY count DESC) " \
+                         "rank FROM (SELECT name, exercise, SUM(count) count FROM log GROUP BY name, exercise) a "
 
-        week_query = "SELECT a.name, a.exercise, a.count, RANK() OVER(PARTITION BY exercise ORDER BY count) rank " \
+        week_query = "SELECT a.name, a.exercise, a.count, RANK() OVER(PARTITION BY exercise ORDER BY count DESC) rank "\
                      "FROM (SELECT name, exercise, SUM(count) count " \
                      "FROM log WHERE week = ? GROUP BY name, exercise " \
                      ") a"
