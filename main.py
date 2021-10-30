@@ -15,7 +15,7 @@ db.create_tables()
 keyboard = [
     [InlineKeyboardButton("Track Exercise", callback_data='track_exercise')],
     [InlineKeyboardButton("Retrieve", callback_data='retrieve')],
-    [InlineKeyboardButton("Retrieve", callback_data='leaderboard')]
+    [InlineKeyboardButton("Leaderboard", callback_data='leaderboard')]
 ]
 main_keyboard = InlineKeyboardMarkup(keyboard)
 
@@ -125,6 +125,19 @@ def leaderboard(update, context):
     query = update.callback_query
     query.answer()
 
+    week, all_time = db.get_leaderboards()
+
+    all_time = "All time leaders \n" + all_time
+    week = "This week's leaders \n" + week + "\n \n"
+
+    keyboard = [
+        [InlineKeyboardButton("Back", callback_data='return_menu')]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    query.edit_message_text(week + all_time, reply_markup=reply_markup)
+
+    return ConversationHandler.END
 
 
 def main():

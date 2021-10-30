@@ -2,10 +2,12 @@ import sqlite3
 import datetime
 from math import prod
 
+
 class Database:
     '''
     Initializing database.db file and connecting to the file
     '''
+
     def __init__(self):
         self.con = sqlite3.connect(
             'database.db', check_same_thread=False)
@@ -14,12 +16,14 @@ class Database:
     '''
     Initializing commit function
     '''
+
     def commit(self):
-      self.con.commit()
+        self.con.commit()
 
     '''
     Initializing tables which only needs to be called once at the start of the program
     '''
+
     def create_tables(self):
         try:
             self.cur.execute(
@@ -49,45 +53,56 @@ class Database:
         except Exception as e:
             print(e)
             return e
-    
+
     def get_all(self):
         self.cur.execute("SELECT * FROM log ORDER BY ROWID DESC LIMIT 1")
         a = self.cur.fetchall()
         return a
 
     def get_leaderboards(self):
-        def calculate_position(entries):
-            all_cats = sorted(list(set([entry[1] for entry in entries])))
-            all_participants = set([entry[0] for entry in entries])
-            output_dict = dict([(name, {"ranking": 1}) for name in all_participants])
+
+        def calculate_position(series):
+            participants = set([entry[0] for entry in series])
+            exercises = sorted(list(set([entry[1] for entry in series])))
             output_list = []
 
-            for cat in all_cats:
-                leaders = sorted(filter(lambda x: x[1] == cat, entries), key=lambda x: x[2], reverse=True) #name, cat, count
-                for idx, leader in enumerate(leaders):
-                    output_dict[leader[0]][cat] = leader[2]
-                    output_dict[leader[0]]["ranking"] *= idx + 1
-
-            for participant in all_participants:
-                lst = [participant]
-                lst.extend([output_dict[participant][cat] for cat in all_cats])
-                lst.append(output_dict[participant]["ranking"])
-                output_list.append(lst)
+            for participant in participants:
+                lst = sorted(filter(lambda x: x[0] == participant, series), key=lambda x: x[1])
+                out = [participant]
+                ranking = prod([x[3] for x in lst])
+                for entry in lst:
+                    out.append(str(round(entry[2],1)))
+                out.append(ranking)
+                output_list.append(out)
 
             output_list = sorted(output_list, key=lambda x: x[-1])
+            s = "(" + ", ".join(exercises) + ") \n"
 
-            return all_cats, output_list
+            for idx, entry in enumerate(output_list):
+                s += str(idx + 1) + ". " + entry[0] + " "
+                s += "(" + ", ".join(entry[1:-1]) + ") \n"
+
+            return s
 
         cweek = datetime.datetime.now().isocalendar().week
 
-        self.cur.execute("SELECT name, exercise, SUM(count) FROM log GROUP BY name, exercise")
+        all_time_query = "SELECT a.name, a.exercise, a.count, RANK() OVER(PARTITION BY exercise ORDER BY count) rank " \
+                         "FROM (SELECT name, exercise, SUM(count) count " \
+                         "FROM log GROUP BY name, exercise) a"
+
+        week_query = "SELECT a.name, a.exercise, a.count, RANK() OVER(PARTITION BY exercise ORDER BY count) rank " \
+                     "FROM (SELECT name, exercise, SUM(count) count " \
+                     "FROM log WHERE week = ? GROUP BY name, exercise " \
+                     ") a"
+
+        self.cur.execute(all_time_query)
         all_time = self.cur.fetchall()
-        self.cur.execute("SELECT name, exercise, SUM(count) FROM log WHERE week = ? GROUP BY name, exercise", (cweek,))
+        self.cur.execute(week_query, (cweek,))
         current_week = self.cur.fetchall()
 
-        all_time_order, all_time_results = calculate_position(all_time)
-        week_order, week_results = calculate_position(current_week)
-        return week_order, week_results, all_time_order, all_time_results
+        all_time_results = calculate_position(all_time)
+        week_results = calculate_position(current_week)
+        return week_results, all_time_results
 
     def drop_table(self, table):
         self.cur.execute("DROP TABLE log")
