@@ -12,14 +12,14 @@ db.create_tables()
 def start(update: Update, context):
     """Sends a message with three inline buttons attached."""
     keyboard = [
-        [InlineKeyboardButton("Track Exercise", callback_data='1')],
-        [InlineKeyboardButton("Retrieve", callback_data='2')],
+        [InlineKeyboardButton("Track Exercise", callback_data='track_exercise')],
+        [InlineKeyboardButton("Retrieve", callback_data='retrieve')],
     ]
 
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     update.message.reply_text('Please choose:', reply_markup=reply_markup)
-    return "from_start"
+
 
 
 def help_command(update: Update, context):
@@ -39,24 +39,32 @@ def button(update: Update, context: CallbackContext) -> None:
 
     query.edit_message_text(text=a)
 '''
-def ask_exercise(update, context, exercise=""):
-
 def log_exercise(update, context, exercise=""):
+    user = update.message.from_user.first_name
+    tele_id = update.message.from_user.username
+    score = update.message.text
+
+
+    db.insert_entry(user, exercise, 3, 2)
+    update.message.reply_text(f"Success! Recorded {score} reps for {user}.")
+    return ConversationHandler.END
+
+def ask_exercise(update, context, exercise=""):
     query = update.callback_query
-    user = query.from_user.username
     query.answer()
 
     if exercise == "PU":
-
+        query.edit_message_text("Pull ups selected. Please enter how many pull ups you have done:")
+        return "LOG_PU"
         # db.insert_entry(user, exercise, 3, 2)
-        print(user)
+        # print(user)
     elif exercise == "C":
-        db.insert_entry(user, exercise, 3, 2)
-        print(user)
+        query.edit_message_text("Core selected. Please enter how many you have done:")
+        return "LOG_C"
     elif exercise == "R":
-        db.insert_entry(user, exercise, 3, 2)
-        print(user)
-    query.edit_message_text("Please enter how many: ")
+        query.edit_message_text("Run selected. Please enter how far you have ran in km (e.g. 4.6):")
+        return "LOG_R"
+
 
 
 
@@ -92,25 +100,19 @@ def main() -> None:
     # Get the dispatcher to register handlers
     dispatcher = updater.dispatcher
 
-    # Setup conversation handler with the states FIRST and SECOND
-    # Use the pattern parameter to pass CallbackQueries with specific
-    # data pattern to the corresponding handlers.
-    # ^ means "start of line/string"
-    # $ means "end of line/string"
-    # So ^ABC$ will only allow 'ABC'
+    dispatcher.add_handler(CommandHandler("start", start))
     dispatcher.add_handler(
         ConversationHandler(
-            entry_points=[CommandHandler('start', start)],
+            entry_points=[CallbackQueryHandler(choose_exercise, pattern="track_exercise")],
             states={
-                "from_start": [
-                    CallbackQueryHandler(choose_exercise, pattern='1'),
-                    CallbackQueryHandler(get_one, pattern='2')
-                ],
                 "selected_exercise": [
-                    CallbackQueryHandler(partial(log_exercise, exercise="PU"), pattern='PU'),
-                    CallbackQueryHandler(partial(log_exercise, exercise="C"), pattern='C'),
-                    CallbackQueryHandler(partial(log_exercise, exercise="R"), pattern='R'),
-                ]
+                    CallbackQueryHandler(partial(ask_exercise, exercise="PU"), pattern='PU'),
+                    CallbackQueryHandler(partial(ask_exercise, exercise="C"), pattern='C'),
+                    CallbackQueryHandler(partial(ask_exercise, exercise="R"), pattern='R'),
+                ],
+                "LOG_PU": [MessageHandler(Filters.text, partial(log_exercise, exercise="PU"))],
+                "LOG_C": [MessageHandler(Filters.text, partial(log_exercise, exercise="C"))],
+                "LOG_R": [MessageHandler(Filters.text, partial(log_exercise, exercise="R"))]
             },
             fallbacks=[CommandHandler('start', start)],
             per_message=False
