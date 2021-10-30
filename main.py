@@ -8,19 +8,20 @@ from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, Callb
     ConversationHandler
 from db import Database
 from functools import partial, wraps
+import keep_alive
 
 db = Database()
 db.create_tables()
 
 keyboard = [
     [InlineKeyboardButton("Track Exercise", callback_data='track_exercise')],
-    [InlineKeyboardButton("Retrieve", callback_data='retrieve')],
     [InlineKeyboardButton("Leaderboards", callback_data='leaderboard')]
 ]
 main_keyboard = InlineKeyboardMarkup(keyboard)
 
 LIST_OF_ADMINS = [148721731]
 
+keep_alive.keep_alive()
 
 def restricted(func):
     @wraps(func)
