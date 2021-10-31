@@ -131,8 +131,19 @@ def choose_exercise_query(update, context):
     return "selected_exercise"
 
 
-def delete_exercise(update, context):
-    pass
+def delete_exercise(update, context, offset=0, limit=5):
+    history = db.get_user_history(update.message.from_user.username, offset)
+    history = [list(map(lambda x: str(x), entry)) for entry in history]
+    keyboard = [[InlineKeyboardButton(entry[3][5:10] + ": " + str(entry[2]) + " " + entry[1],
+                                      callback_data=",".join(entry))] for entry in history]
+    keyboard.append([InlineKeyboardButton("More entries", callback_data=f"next_page_{offset + limit}")])
+    keyboard.append([InlineKeyboardButton("Back", callback_data="return_menu")])
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    update.message.reply_text(
+        text=f"Showing entries {offset} to {offset + limit}: ", reply_markup=reply_markup
+    )
+
+    return "selected_delete"
 
 
 def delete_exercise_query(update, context, offset=0, limit=5):
