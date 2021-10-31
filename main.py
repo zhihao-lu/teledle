@@ -249,6 +249,19 @@ def drop(update, context):
     db.drop_table("")
 
 
+@restricted
+def execute(update, context):
+    query = " ".join(context.args)
+    r = db.execute_query(query)
+    update.message.reply_text(r)
+
+
+@restricted
+def set_query(update, context):
+    query = " ".join(context.args)
+    db.set_query(query)
+
+
 def main():
     """Run the bot."""
     # Create the Updater and pass it your bot's token.
@@ -305,6 +318,8 @@ def main():
     # Admin commands
     dispatcher.add_handler(CommandHandler("get_one", get_one))
     dispatcher.add_handler(CommandHandler("drop", drop))
+    dispatcher.add_handler(CommandHandler("execute", execute))
+    dispatcher.add_handler(CommandHandler("set", set_query))
 
     # Start the Bot
     updater.start_polling()
