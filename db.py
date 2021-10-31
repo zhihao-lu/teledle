@@ -114,3 +114,25 @@ class Database:
     def drop_table(self, table):
         self.cur.execute("DROP TABLE log")
         self.con.commit()
+
+    def get_history(self, tele):
+        cweek = datetime.datetime.now().isocalendar()[1]
+        all_time_query = "SELECT exercise, SUM(count) FROM log GROUP BY exercise"
+        week_query = "SELECT exercise, SUM(count)  FROM log WHERE week = ? GROUP BY exercise"
+
+        self.cur.execute(all_time_query)
+        all_time = self.cur.fetchall()
+        self.cur.execute(week_query, (cweek,))
+        current_week = self.cur.fetchall()
+
+        s = "This week:\n"
+
+        for ex, count in current_week:
+            s += ex + ": " + str(count) + "\n"
+
+        s += "\n \n"
+        s += "All time: \n"
+        for ex, count in all_time:
+            s += ex + ": " + str(count) + "\n"
+        return s
+

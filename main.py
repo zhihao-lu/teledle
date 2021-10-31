@@ -14,6 +14,7 @@ db.create_tables()
 
 keyboard = [
     [InlineKeyboardButton("Track Exercise", callback_data='track_exercise')],
+    [InlineKeyboardButton("View History", callback_data='view_history')],
     [InlineKeyboardButton("Leaderboards", callback_data='leaderboard')]
 ]
 main_keyboard = InlineKeyboardMarkup(keyboard)
@@ -44,6 +45,7 @@ def show_back_home(update, context):
     text = "Welcome back home! Please select one of the options:"
     query.edit_message_text(text, reply_markup=main_keyboard)
     return ConversationHandler.END
+
 
 def log_exercise(update, context, exercise=""):
     name = update.message.from_user.first_name
@@ -147,6 +149,22 @@ def leaderboard(update, context):
     return ConversationHandler.END
 
 
+def view_history(update, context):
+    query = update.callback_query
+    tele = query.from_user.username
+    query.answer()
+
+    s = db.get_history(tele)
+
+    keyboard = [
+        [InlineKeyboardButton("Back", callback_data='return_menu')]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    query.edit_message_text(s, reply_markup=reply_markup)
+
+    return ConversationHandler.END
+
 # Admin functions
 @restricted
 def get_one(update, context):
@@ -169,6 +187,7 @@ def main():
     dispatcher.add_handler(CommandHandler("start", start))
     dispatcher.add_handler(CallbackQueryHandler(show_back_home, pattern="return_menu"))
     dispatcher.add_handler(CallbackQueryHandler(leaderboard, pattern="leaderboard"))
+    dispatcher.add_handler(CallbackQueryHandler(view_history, pattern="view_history"))
     dispatcher.add_handler(CommandHandler("add_entry", log_exercise))
     dispatcher.add_handler(
         ConversationHandler(
