@@ -165,6 +165,7 @@ def view_history(update, context):
 
     return ConversationHandler.END
 
+
 # Admin functions
 @restricted
 def get_one(update, context):

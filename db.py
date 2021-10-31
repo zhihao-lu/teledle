@@ -112,7 +112,7 @@ class Database:
         return week_results, all_time_results
 
     def drop_table(self, table):
-        self.cur.execute("DROP TABLE log")
+        self.cur.execute("DELETE FROM log")
         self.con.commit()
 
     def get_history(self, tele):
