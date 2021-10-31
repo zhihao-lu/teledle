@@ -8,7 +8,6 @@ from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, Callb
     ConversationHandler
 from db import Database
 from functools import partial, wraps
-import keep_alive
 
 db = Database()
 db.create_tables()
@@ -21,7 +20,6 @@ main_keyboard = InlineKeyboardMarkup(keyboard)
 
 LIST_OF_ADMINS = [148721731]
 
-keep_alive.keep_alive()
 
 def restricted(func):
     @wraps(func)
@@ -35,6 +33,7 @@ def restricted(func):
 
 
 def start(update: Update, context):
+
     update.message.reply_text('Please select one of the options:', reply_markup=main_keyboard)
 
 
@@ -44,9 +43,7 @@ def show_back_home(update, context):
 
     text = "Welcome back home! Please select one of the options:"
     query.edit_message_text(text, reply_markup=main_keyboard)
-
     return ConversationHandler.END
-
 
 def log_exercise(update, context, exercise=""):
     name = update.message.from_user.first_name
@@ -121,7 +118,7 @@ def choose_exercise_query(update, context):
         [InlineKeyboardButton("Pull ups", callback_data='P'),
          InlineKeyboardButton("Core", callback_data='C'),
          InlineKeyboardButton("Run", callback_data='R')],
-        [InlineKeyboardButton("Back", callback_data='back')]
+        [InlineKeyboardButton("Back", callback_data='return_menu')]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     query.edit_message_text(
@@ -181,14 +178,15 @@ def main():
                 "selected_exercise": [
                     CallbackQueryHandler(partial(ask_exercise, exercise="P"), pattern='P'),
                     CallbackQueryHandler(partial(ask_exercise, exercise="C"), pattern='C'),
-                    CallbackQueryHandler(partial(ask_exercise, exercise="R"), pattern='R'),
+                    CallbackQueryHandler(partial(ask_exercise, exercise="R"), pattern='R')
                 ],
                 "LOG_P": [MessageHandler(Filters.all, callback=partial(log_exercise, exercise="Pull Ups"))],
                 "LOG_C": [MessageHandler(Filters.all, callback=partial(log_exercise, exercise="Core"))],
                 "LOG_R": [MessageHandler(Filters.all, callback=partial(log_exercise, exercise="Run"))],
-                "choose_exercise": [CallbackQueryHandler(choose_exercise_query, pattern="track_exercise")]
+                "choose_exercise": [CallbackQueryHandler(choose_exercise_query, pattern="track_exercise")],
+                # "TIMEOUT": [CallbackQueryHandler(choose_exercise_query, pattern="track_exercise")]
             },
-            fallbacks=[CommandHandler('start', start)],
+            fallbacks=[CallbackQueryHandler(choose_exercise_query, pattern="track_exercise")],
             per_message=False
         )
     )
