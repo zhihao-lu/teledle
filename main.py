@@ -83,10 +83,11 @@ def log_exercise(update, context, exercise=""):
     return ConversationHandler.END
 
 
-def ask_exercise(update, context, exercise=""):
+def ask_exercise(update, context):
     query = update.callback_query
     query.answer()
-
+    exercise = query.data[1:]
+    print(exercise)
     if exercise == "P":
         query.edit_message_text("Pull ups selected. Please enter how many pull ups you have done:")
         return "LOG_P"
@@ -101,9 +102,9 @@ def ask_exercise(update, context, exercise=""):
 
 def choose_exercise(update, context):
     keyboard = [
-        [InlineKeyboardButton("Pull ups", callback_data='P'),
-         InlineKeyboardButton("Core", callback_data='C'),
-         InlineKeyboardButton("Run", callback_data='R')],
+        [InlineKeyboardButton("Pull ups", callback_data='EP'),
+         InlineKeyboardButton("Core", callback_data='EC'),
+         InlineKeyboardButton("Run", callback_data='ER')],
         [InlineKeyboardButton("Back", callback_data='return_menu')]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -118,9 +119,9 @@ def choose_exercise_query(update, context):
     query = update.callback_query
     query.answer()
     keyboard = [
-        [InlineKeyboardButton("Pull ups", callback_data='P'),
-         InlineKeyboardButton("Core", callback_data='C'),
-         InlineKeyboardButton("Run", callback_data='R')],
+        [InlineKeyboardButton("Pull ups", callback_data='EP'),
+         InlineKeyboardButton("Core", callback_data='EC'),
+         InlineKeyboardButton("Run", callback_data='ER')],
         [InlineKeyboardButton("Back", callback_data='return_menu')]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -269,9 +270,7 @@ def main():
                           CallbackQueryHandler(choose_exercise_query, pattern="track_exercise")],
             states={
                 "selected_exercise": [
-                    CallbackQueryHandler(partial(ask_exercise, exercise="P"), pattern='P'),
-                    CallbackQueryHandler(partial(ask_exercise, exercise="C"), pattern='C'),
-                    CallbackQueryHandler(partial(ask_exercise, exercise="R"), pattern='R')
+                    CallbackQueryHandler(ask_exercise, pattern="^E")
                 ],
                 "LOG_P": [MessageHandler(Filters.all, callback=partial(log_exercise, exercise="Pull Ups"))],
                 "LOG_C": [MessageHandler(Filters.all, callback=partial(log_exercise, exercise="Core"))],
