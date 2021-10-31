@@ -13,16 +13,17 @@ class Database:
             'database.db', check_same_thread=False)
         self.cur = self.con.cursor()
 
-    '''
-    Initializing commit function
-    '''
-
     def commit(self):
         self.con.commit()
 
-    '''
-    Initializing tables which only needs to be called once at the start of the program
-    '''
+    def execute_query(self, query):
+        self.cur.execute(query)
+        result = self.cur.fetchall()
+        return result
+
+    def set_query(self, query):
+        self.cur.execute(query)
+        self.con.commit()
 
     def create_tables(self):
         try:
@@ -53,9 +54,9 @@ class Database:
                     if exercise != e:
                         self.cur.execute("INSERT INTO log(name, exercise, count, date, week, tele) VALUES(?,?,?,?,?,?)",
                                          (name, e, 0, d, w, tele))
-
-            self.cur.execute("INSERT INTO log(name, exercise, count, date, week, tele) VALUES(?,?,?,?,?,?)",
-                             (name, exercise, count, d, w, tele))
+            if count != 0:
+                self.cur.execute("INSERT INTO log(name, exercise, count, date, week, tele) VALUES(?,?,?,?,?,?)",
+                                 (name, exercise, count, d, w, tele))
             self.con.commit()
             return True
         except Exception as e:
@@ -115,7 +116,7 @@ class Database:
         self.cur.execute("DELETE FROM log")
         self.con.commit()
 
-    def get_history(self, tele):
+    def get_history(self):
         cweek = datetime.datetime.now().isocalendar()[1]
         all_time_query = "SELECT exercise, SUM(count) FROM log GROUP BY exercise"
         week_query = "SELECT exercise, SUM(count)  FROM log WHERE week = ? GROUP BY exercise"
@@ -136,3 +137,23 @@ class Database:
             s += ex + ": " + str(count) + "\n"
         return s
 
+    def get_user_history(self, tele, offset=0, limit=5):
+        query = "SELECT rowid, exercise, count, date FROM log WHERE tele = ? and count != 0 ORDER BY date DESC LIMIT 5 OFFSET ?"
+        self.cur.execute(query, (tele, offset))
+        results = self.cur.fetchall()
+
+        return results
+        '''
+        results = [(str(entry[0]) + ".", entry[1], entry[2]) for entry in results]
+        results = [" ".join([str(x) for x in entry]) for entry in results]
+
+        s = f"Entries {0 + offset} to {offset + 10}: \n \n"
+
+        r = "\n".join(results)
+
+        return s + r
+        '''
+
+    def delete_entry(self, rowid):
+        self.cur.execute("DELETE FROM log WHERE rowid = ?", (rowid,))
+        self.con.commit()

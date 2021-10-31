@@ -14,6 +14,7 @@ db.create_tables()
 
 keyboard = [
     [InlineKeyboardButton("Track Exercise", callback_data='track_exercise')],
+    [InlineKeyboardButton("Delete Exercise", callback_data='delete_exercise')],
     [InlineKeyboardButton("View History", callback_data='view_history')],
     [InlineKeyboardButton("Leaderboards", callback_data='leaderboard')]
 ]
@@ -130,6 +131,65 @@ def choose_exercise_query(update, context):
     return "selected_exercise"
 
 
+def delete_exercise(update, context):
+    pass
+
+
+def delete_exercise_query(update, context, offset=0, limit=5):
+    query = update.callback_query
+    query.answer()
+    if "next_page" in query.data:
+        offset = int(query.data[10:])
+
+    history = db.get_user_history(query.from_user.username, offset)
+    history = [list(map(lambda x: str(x), entry)) for entry in history]
+    keyboard = [[InlineKeyboardButton(entry[3][5:10] + ": " + str(entry[2]) + " " + entry[1],
+                                      callback_data=",".join(entry))] for entry in history]
+    keyboard.append([InlineKeyboardButton("More entries", callback_data=f"next_page_{offset + limit}")])
+    keyboard.append([InlineKeyboardButton("Back", callback_data="return_menu")])
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    query.edit_message_text(
+        text=f"Showing entries {offset} to {offset + limit}: ", reply_markup=reply_markup
+    )
+
+    return "selected_delete"
+
+
+def confirm_delete(update, context):
+    query = update.callback_query
+    entry = query.data
+    entry = entry.split(",")
+
+    keyboard = [
+        [InlineKeyboardButton("Confirm", callback_data=str(entry[0]))],
+        [InlineKeyboardButton("Back", callback_data="back")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    query.edit_message_text(
+        text=f"Are you sure you want to delete {entry[3][5:10]}" + ': ' + str(entry[2]) + " " + entry[1] + '?'
+        , reply_markup=reply_markup
+    )
+
+    return "confirm_delete"
+
+
+def process_delete(update, context):
+    query = update.callback_query
+    query.answer()
+    rowid = int(query.data)
+
+    db.delete_entry(rowid)
+
+
+    keyboard = [
+        [InlineKeyboardButton("Delete another", callback_data='delete_exercise')],
+        [InlineKeyboardButton("Back", callback_data='return_menu')]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    query.edit_message_text(f"Success! Deleted entry.", reply_markup=reply_markup)
+
+
 def leaderboard(update, context):
     query = update.callback_query
     query.answer()
@@ -154,7 +214,7 @@ def view_history(update, context):
     tele = query.from_user.username
     query.answer()
 
-    s = db.get_history(tele)
+    s = db.get_history()
 
     keyboard = [
         [InlineKeyboardButton("Back", callback_data='return_menu')]
@@ -190,6 +250,8 @@ def main():
     dispatcher.add_handler(CallbackQueryHandler(leaderboard, pattern="leaderboard"))
     dispatcher.add_handler(CallbackQueryHandler(view_history, pattern="view_history"))
     dispatcher.add_handler(CommandHandler("add_entry", log_exercise))
+
+    # Add exercise entry
     dispatcher.add_handler(
         ConversationHandler(
             entry_points=[CommandHandler("track_exercise", choose_exercise),
@@ -207,6 +269,25 @@ def main():
                 # "TIMEOUT": [CallbackQueryHandler(choose_exercise_query, pattern="track_exercise")]
             },
             fallbacks=[CallbackQueryHandler(choose_exercise_query, pattern="track_exercise")],
+            per_message=False
+        )
+    )
+
+    # Delete entry
+    dispatcher.add_handler(
+        ConversationHandler(
+            entry_points=[CommandHandler("delete_exercise", delete_exercise),
+                          CallbackQueryHandler(delete_exercise_query, pattern="delete_exercise")],
+            states={
+                "selected_delete": [
+                    CallbackQueryHandler(confirm_delete, pattern=("^\d")),
+                    CallbackQueryHandler(delete_exercise_query, pattern="^next_page")
+
+                ],
+                "confirm_delete": [CallbackQueryHandler(process_delete, pattern="\d+"),
+                                   CallbackQueryHandler(delete_exercise_query, pattern="back")],
+            },
+            fallbacks=[CallbackQueryHandler(delete_exercise_query, pattern="delete_exercise")],
             per_message=False
         )
     )
