@@ -37,6 +37,16 @@ class Database:
                 'tele text)')
 
             self.con.commit()
+
+            self.cur.execute(
+                'CREATE TABLE IF NOT EXISTS exam('
+                'name text, '
+                'date text, '
+                'start integer, '
+                'end integer, '
+                'tele text)')
+
+            self.con.commit()
             return True
         except Exception as e:
             print(e)
@@ -143,17 +153,17 @@ class Database:
         results = self.cur.fetchall()
 
         return results
-        '''
-        results = [(str(entry[0]) + ".", entry[1], entry[2]) for entry in results]
-        results = [" ".join([str(x) for x in entry]) for entry in results]
-
-        s = f"Entries {0 + offset} to {offset + 10}: \n \n"
-
-        r = "\n".join(results)
-
-        return s + r
-        '''
 
     def delete_entry(self, rowid):
         self.cur.execute("DELETE FROM log WHERE rowid = ?", (rowid,))
         self.con.commit()
+
+    def insert_exam(self, name, tele, date, start, end):
+        try:
+            self.cur.execute("INSERT INTO exam(name, date, start, end, tele) VALUES(?,?,?,?,?)",
+                            (name, date, start, end, tele))
+            self.con.commit()
+            return True
+        except Exception as e:
+            print(e)
+            return e

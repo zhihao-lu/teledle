@@ -1,8 +1,6 @@
-# TO DO
-# multiple people can use at once
-# admin mode
-
 import os
+import re
+import datetime, pytz
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackQueryHandler, \
     ConversationHandler
@@ -12,11 +10,13 @@ from functools import partial, wraps
 db = Database()
 db.create_tables()
 
+GROUP_ID = -495335749
 keyboard = [
     [InlineKeyboardButton("Track Exercise", callback_data='track_exercise')],
     [InlineKeyboardButton("Delete Exercise", callback_data='delete_exercise')],
     [InlineKeyboardButton("View History", callback_data='view_history')],
-    [InlineKeyboardButton("Leaderboards", callback_data='leaderboard')]
+    [InlineKeyboardButton("Leaderboards", callback_data='leaderboard')],
+    [InlineKeyboardButton("Add exam reminder", callback_data='exam')]
 ]
 main_keyboard = InlineKeyboardMarkup(keyboard)
 
@@ -87,7 +87,7 @@ def ask_exercise(update, context):
     query = update.callback_query
     query.answer()
     exercise = query.data[1:]
-    print(exercise)
+
     if exercise == "P":
         query.edit_message_text("Pull ups selected. Please enter how many pull ups you have done:")
         return "LOG_P"
@@ -238,6 +238,68 @@ def view_history(update, context):
     return ConversationHandler.END
 
 
+def exam_entry(update, callback):
+    query = update.callback_query
+    query.answer()
+
+    query.edit_message_text("Enter your exam details (date, start time, end time) in the format: DD/MM HHMM HHMM")
+    return "submitted_exam"
+
+
+def log_exam(update, context, exercise=""):
+    name = update.message.from_user.first_name
+    tele = update.message.from_user.username
+    details = update.message.text
+
+    def valid_input(s):
+        shape = bool(re.match("\d{2}/\d{2}\s\d{2}\d{2}\s\d{2}\d{2}", s))
+        if shape:
+            try:
+                a = datetime.datetime(2021, int(s[3:5]), int(s[:2]), int(s[6:8]), int(s[8:10]))
+                b = datetime.datetime(2021, int(s[3:5]), int(s[:2]), int(s[11:13]), int(s[13:15]))
+                return b > a
+            except ValueError:
+                return False
+        return False
+
+    keyboard = [
+        [InlineKeyboardButton("Record another", callback_data='exam')],
+        [InlineKeyboardButton("Back", callback_data='return_menu')]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    if valid_input(details):
+        date, startt, end = details[:5], details[6:10], details[11:]
+        db.insert_exam(name, tele, date, startt, end)
+        # create job queue
+        send_time = pytz.timezone('Asia/Singapore').\
+            localize(datetime.datetime(2021, int(date[3:]), int(date[:2]), int(startt[:2]), int(startt[2:])) - datetime.timedelta(minutes=15))
+        context.job_queue.run_once(send_message_to_group,
+                                   send_time,
+                                   context=(GROUP_ID, name, startt, end),
+                                   name="exam_alert")
+        print(datetime.datetime(2021, int(date[3:]), int(date[:2]), int(startt[:2]), int(startt[2:])) - datetime.timedelta(minutes=15))
+        print((datetime.datetime(2021, int(date[3:]), int(date[:2]), int(startt[:2]),
+                                int(startt[2:]),
+                                tzinfo=pytz.timezone('Asia/Singapore')) - datetime.timedelta(minutes=15)).tzinfo)
+        update.message.reply_text(f"Success! Recorded exam on {date} from {startt} to {end} for {name}.", reply_markup=reply_markup)
+    else:
+        update.message.reply_text(f"Input is wrong, please try again.")
+        return "submitted_exam"
+
+    return ConversationHandler.END
+
+
+def send_message_to_group(context):
+    job = context.job
+    chat_id, name, startt, end = job.context
+    context.bot.send_message(chat_id, text=f'{name} will be having an exam in 15mins from {startt} to {end}!')
+
+
+def test_message(update, context):
+    print(1)
+    context.bot.send_message(GROUP_ID, text=f'{context.job_queue.jobs()[0].next_t}')
+
 # Admin functions
 @restricted
 def get_one(update, context):
@@ -276,6 +338,17 @@ def main():
     dispatcher.add_handler(CallbackQueryHandler(view_history, pattern="view_history"))
     dispatcher.add_handler(CommandHandler("add_entry", log_exercise))
 
+    # Add exam handler
+    dispatcher.add_handler(
+        ConversationHandler(
+            entry_points=[CallbackQueryHandler(exam_entry, pattern="exam")],
+            states={
+                "submitted_exam": [MessageHandler(Filters.all, callback=log_exam)],
+            },
+            fallbacks=[CallbackQueryHandler(exam_entry, pattern="exam")],
+            per_message=False
+        )
+    )
     # Add exercise entry
     dispatcher.add_handler(
         ConversationHandler(
@@ -316,6 +389,7 @@ def main():
     )
 
     # Admin commands
+    dispatcher.add_handler(CommandHandler("test_msg", test_message))
     dispatcher.add_handler(CommandHandler("get_one", get_one))
     dispatcher.add_handler(CommandHandler("drop", drop))
     dispatcher.add_handler(CommandHandler("execute", execute))
