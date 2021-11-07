@@ -11,7 +11,7 @@ db = Database()
 db.create_tables()
 
 GROUP_ID = -495335749
-REMINDER_TIME = datetime.time(13, 21)
+REMINDER_TIME = datetime.time(21, 00)
 keyboard = [
     [InlineKeyboardButton("Track Exercise", callback_data='track_exercise')],
     [InlineKeyboardButton("Delete Exercise", callback_data='delete_exercise')],
@@ -355,16 +355,26 @@ def set_query(update, context):
 
 @restricted
 def change_group_id(update, context):
-    cid = context.args
+    cid = context.args[0]
     global GROUP_ID
     GROUP_ID = int(cid)
 
 
 @restricted
 def change_reminder_time(update, context):
-    t = context.args
+    t = context.args[0]
     global REMINDER_TIME
     REMINDER_TIME = datetime.time(int(t[:2]), int(t[2:]))
+
+
+@restricted
+def get_reminder_time(update, context):
+    update.message.reply_text(str(REMINDER_TIME))
+
+
+@restricted
+def get_group_id(update, context):
+    update.message.reply_text(GROUP_ID)
 
 
 def main():
@@ -433,6 +443,8 @@ def main():
     )
 
     # Admin commands
+    dispatcher.add_handler(CommandHandler("get_reminder_time", get_reminder_time))
+    dispatcher.add_handler(CommandHandler("get_group_id", get_group_id))
     dispatcher.add_handler(CommandHandler("change_reminder_time", change_reminder_time))
     dispatcher.add_handler(CommandHandler("change_group_id", change_group_id))
     dispatcher.add_handler(CommandHandler("get_one", get_one))
