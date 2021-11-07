@@ -329,8 +329,6 @@ def test_message(update, context):
     context.bot.send_message(GROUP_ID, text=f'{context.job_queue.jobs()[0].next_t}')
 
 
-
-
 # Admin functions
 @restricted
 def get_one(update, context):
@@ -358,7 +356,16 @@ def set_query(update, context):
 @restricted
 def change_group_id(update, context):
     cid = context.args
+    global GROUP_ID
     GROUP_ID = int(cid)
+
+
+@restricted
+def change_reminder_time(update, context):
+    t = context.args
+    global REMINDER_TIME
+    REMINDER_TIME = datetime.time(int(t[:2]), int(t[2:]))
+
 
 def main():
     """Run the bot."""
@@ -426,6 +433,7 @@ def main():
     )
 
     # Admin commands
+    dispatcher.add_handler(CommandHandler("change_reminder_time", change_reminder_time))
     dispatcher.add_handler(CommandHandler("change_group_id", change_group_id))
     dispatcher.add_handler(CommandHandler("get_one", get_one))
     dispatcher.add_handler(CommandHandler("drop", drop))
