@@ -167,3 +167,19 @@ class Database:
         except Exception as e:
             print(e)
             return e
+
+    def get_exam_string(self, day, month):
+        date = str(day).zfill(2) + "/" + str(month).zfill(2)
+        print(date)
+        query = f"SELECT DISTINCT * FROM exam WHERE date = '{date}'"
+        self.cur.execute(query)
+        results = self.cur.fetchall()
+
+        out = ""
+        if results:
+            out = f"Exams for tomorrow ({date}) \n"
+            for r in results:
+                s = r[0] + ": " + str(r[2]).zfill(4) + "-" + str(r[3]).zfill(4) + "\n"
+                out += s
+
+        return out

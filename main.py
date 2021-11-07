@@ -3,7 +3,7 @@ import re
 import datetime, pytz
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackQueryHandler, \
-    ConversationHandler
+    ConversationHandler, Defaults
 from db import Database
 from functools import partial, wraps
 
@@ -11,6 +11,7 @@ db = Database()
 db.create_tables()
 
 GROUP_ID = -495335749
+REMINDER_TIME = datetime.time(13, 21)
 keyboard = [
     [InlineKeyboardButton("Track Exercise", callback_data='track_exercise')],
     [InlineKeyboardButton("Delete Exercise", callback_data='delete_exercise')],
@@ -31,17 +32,32 @@ def restricted(func):
             print("Unauthorized access denied for {}.".format(user_id))
             return
         return func(update, context, *args, **kwargs)
+
     return wrapped
 
 
-def start(update: Update, context):
+def remove_job_if_exists(name, context):
+    """Remove job with given name. Returns whether job was removed."""
+    current_jobs = context.job_queue.get_jobs_by_name(name)
+    if not current_jobs:
+        return False
+    for job in current_jobs:
+        job.schedule_removal()
+    return True
 
+
+def start(update: Update, context):
     update.message.reply_text('Please select one of the options:', reply_markup=main_keyboard)
+    remove_job_if_exists("daily_exam", context)
+    context.job_queue.run_daily(daily_exam_reminder, REMINDER_TIME, context=GROUP_ID, name="daily_exam")
 
 
 def show_back_home(update, context):
     query = update.callback_query
     query.answer()
+
+    remove_job_if_exists("daily_exam", context)
+    context.job_queue.run_daily(daily_exam_reminder, REMINDER_TIME, context=GROUP_ID, name="daily_exam")
 
     text = "Welcome back home! Please select one of the options:"
     query.edit_message_text(text, reply_markup=main_keyboard)
@@ -192,7 +208,6 @@ def process_delete(update, context):
 
     db.delete_entry(rowid)
 
-
     keyboard = [
         [InlineKeyboardButton("Delete another", callback_data='delete_exercise')],
         [InlineKeyboardButton("Back", callback_data='return_menu')]
@@ -253,6 +268,8 @@ def log_exam(update, context, exercise=""):
 
     def valid_input(s):
         shape = bool(re.match("\d{2}/\d{2}\s\d{2}\d{2}\s\d{2}\d{2}", s))
+        remove_job_if_exists("daily_exam", context)
+        context.job_queue.run_daily(daily_exam_reminder, REMINDER_TIME, context=GROUP_ID, name="daily_exam")
         if shape:
             try:
                 a = datetime.datetime(2021, int(s[3:5]), int(s[:2]), int(s[6:8]), int(s[8:10]))
@@ -271,18 +288,19 @@ def log_exam(update, context, exercise=""):
     if valid_input(details):
         date, startt, end = details[:5], details[6:10], details[11:]
         db.insert_exam(name, tele, date, startt, end)
-        # create job queue
-        send_time = pytz.timezone('Asia/Singapore').\
-            localize(datetime.datetime(2021, int(date[3:]), int(date[:2]), int(startt[:2]), int(startt[2:])) - datetime.timedelta(minutes=15))
+
+        send_time = datetime.datetime(2021,
+                                      int(date[3:]),
+                                      int(date[:2]),
+                                      int(startt[:2]),
+                                      int(startt[2:])) - datetime.timedelta(minutes=15)
         context.job_queue.run_once(send_message_to_group,
                                    send_time,
                                    context=(GROUP_ID, name, startt, end),
                                    name="exam_alert")
-        print(datetime.datetime(2021, int(date[3:]), int(date[:2]), int(startt[:2]), int(startt[2:])) - datetime.timedelta(minutes=15))
-        print((datetime.datetime(2021, int(date[3:]), int(date[:2]), int(startt[:2]),
-                                int(startt[2:]),
-                                tzinfo=pytz.timezone('Asia/Singapore')) - datetime.timedelta(minutes=15)).tzinfo)
-        update.message.reply_text(f"Success! Recorded exam on {date} from {startt} to {end} for {name}.", reply_markup=reply_markup)
+
+        update.message.reply_text(f"Success! Recorded exam on {date} from {startt} to {end} for {name}.",
+                                  reply_markup=reply_markup)
     else:
         update.message.reply_text(f"Input is wrong, please try again.")
         return "submitted_exam"
@@ -296,9 +314,20 @@ def send_message_to_group(context):
     context.bot.send_message(chat_id, text=f'{name} will be having an exam in 15mins from {startt} to {end}!')
 
 
+def daily_exam_reminder(context):
+    job = context.job
+    chat_id = job.context
+    tomorrow = pytz.timezone('Asia/Singapore'). \
+                   localize(datetime.datetime.now()) + datetime.timedelta(days=1)
+    s = db.get_exam_string(tomorrow.day, tomorrow.month)
+    if s:
+        context.bot.send_message(chat_id, text=s)
+
+
 def test_message(update, context):
     print(1)
     context.bot.send_message(GROUP_ID, text=f'{context.job_queue.jobs()[0].next_t}')
+
 
 # Admin functions
 @restricted
@@ -326,8 +355,9 @@ def set_query(update, context):
 
 def main():
     """Run the bot."""
+    defaults = Defaults(tzinfo=pytz.timezone('Asia/Singapore'))
     # Create the Updater and pass it your bot's token.
-    updater = Updater(os.environ['TOKEN'])
+    updater = Updater(os.environ['TOKEN'], defaults=defaults)
 
     # Get the dispatcher to register handlers
     dispatcher = updater.dispatcher
