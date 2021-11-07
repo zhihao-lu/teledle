@@ -47,9 +47,12 @@ def remove_job_if_exists(name, context):
 
 
 def start(update: Update, context):
-    update.message.reply_text('Please select one of the options:', reply_markup=main_keyboard)
-    remove_job_if_exists("daily_exam", context)
-    context.job_queue.run_daily(daily_exam_reminder, REMINDER_TIME, context=GROUP_ID, name="daily_exam")
+    if update.message.chat.type != 'group':
+        update.message.reply_text('Please select one of the options:', reply_markup=main_keyboard)
+        remove_job_if_exists("daily_exam", context)
+        context.job_queue.run_daily(daily_exam_reminder, REMINDER_TIME, context=GROUP_ID, name="daily_exam")
+    else:
+        update.message.reply_text('Not available in groups. Please PM me.')
 
 
 def show_back_home(update, context):
