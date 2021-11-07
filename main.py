@@ -329,6 +329,8 @@ def test_message(update, context):
     context.bot.send_message(GROUP_ID, text=f'{context.job_queue.jobs()[0].next_t}')
 
 
+
+
 # Admin functions
 @restricted
 def get_one(update, context):
@@ -352,6 +354,11 @@ def set_query(update, context):
     query = " ".join(context.args)
     db.set_query(query)
 
+
+@restricted
+def change_group_id(update, context):
+    cid = context.args
+    GROUP_ID = int(cid)
 
 def main():
     """Run the bot."""
@@ -419,7 +426,7 @@ def main():
     )
 
     # Admin commands
-    dispatcher.add_handler(CommandHandler("test_msg", test_message))
+    dispatcher.add_handler(CommandHandler("change_group_id", change_group_id))
     dispatcher.add_handler(CommandHandler("get_one", get_one))
     dispatcher.add_handler(CommandHandler("drop", drop))
     dispatcher.add_handler(CommandHandler("execute", execute))
