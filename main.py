@@ -16,7 +16,7 @@ import os
 import logging
 from typing import Dict
 
-from telegram import InlineKeyboardMarkup, Update, ReplyKeyboardRemove, InlineKeyboardButton
+from telegram import InlineKeyboardMarkup, Update, ReplyKeyboardRemove, InlineKeyboardButton, ParseMode
 from telegram.ext import (
     Updater,
     CommandHandler,
@@ -27,6 +27,7 @@ from telegram.ext import (
     CallbackQueryHandler
 )
 
+WORD = "EMILY"
 
 CHOOSING, TYPING_REPLY, TYPING_CHOICE = range(3)
 
@@ -48,25 +49,59 @@ def start(update: Update, context: CallbackContext) -> int:
 def start_game(update, context):
     query = update.callback_query
     query.answer()
-    context.user_data["guess_string"] = "Guess a 5 letter word \n _ _ _ _ _"
+    context.user_data["guess_string"] = "Guess a 5 letter word\. Correct characters are in *bold*, correct characters "\
+                                        "in the wrong position are in _italics_\. Wrong characters appear at the side\." \
+                                        " \n \_ \_ \_ \_ \_ \n "
+    context.user_data["remaining_chars"] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
     # Send the key to the user
-    query.edit_message_text(context.user_data["guess_string"])
+    query.edit_message_text(context.user_data["guess_string"], parse_mode=ParseMode.MARKDOWN_V2)
     return "guess"
+
+
+def generate_guess_string(answer, guess, context):
+    answer = answer.upper()
+    guess = guess.upper()
+
+    correct = ''
+    side = ''
+    for idx, char in enumerate(guess):
+        if char == answer[idx]:
+            correct += f"*{char}*  "
+        elif char in answer:
+            correct += f"_{char}_ "
+        else:
+            correct += "\_ "
+            side += f"{char} "
+        context.user_data["remaining_chars"] = context.user_data["remaining_chars"].replace(char, "")
+    out = correct + "\| " + side + "\n"
+
+    if answer == guess:
+        out += "Congrats you won!"
+
+    return out, answer == guess
 
 
 def verify_guess(update, context):
     name = update.message.from_user.first_name
     tele = update.message.from_user.username
     guess = update.message.text
-    print(guess)
+    guess_string, has_won = generate_guess_string(WORD, guess, context)
 
-    keyboard = [
-        [InlineKeyboardButton("Record another", callback_data='track_exercise')],
-        [InlineKeyboardButton("Back", callback_data='return_menu')]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    update.message.reply_text(f"You guessed {guess}", reply_markup=reply_markup)
+    context.user_data["guess_string"] = context.user_data["guess_string"] + guess_string
 
+    if has_won:
+        keyboard = [
+            [InlineKeyboardButton("Record another", callback_data='track_exercise')],
+            [InlineKeyboardButton("Back", callback_data='return_menu')]
+        ]
+        # reply_markup = InlineKeyboardMarkup(keyboard)
+        update.message.reply_text(context.user_data["guess_string"])  # , reply_markup=reply_markup)
+        return "win"
+    update.message.reply_text(context.user_data["guess_string"] + "\n\n" + \
+                              "Characters remaining: \n" + \
+                              " ".join(context.user_data["remaining_chars"]),
+                              parse_mode=ParseMode.MARKDOWN_V2)  # , reply_markup=reply_markup)
+    return "guess"
     if "win":
         return "win"
     elif "too many guesses":
@@ -74,6 +109,15 @@ def verify_guess(update, context):
     else:
         return "guess"
 
+
+def done(update: Update, context: CallbackContext) -> int:
+    """Display the gathered info and end the conversation."""
+    user_data = context.user_data
+    if 'choice' in user_data:
+        del user_data['choice']
+
+    user_data.clear()
+    return ConversationHandler.END
 
 
 def main() -> None:
@@ -95,7 +139,11 @@ def main() -> None:
                 MessageHandler(
                     Filters.all, verify_guess
                 )
+            ],
+            "win": [
+
             ]
+
         },
         fallbacks=[MessageHandler(Filters.regex('^Done$'), start)],
     )
