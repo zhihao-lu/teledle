@@ -84,10 +84,8 @@ def generate_guess_string(answer, guess, context):
             correct += "\_ "
             side += f"{char} "
         context.user_data["remaining_chars"] = context.user_data["remaining_chars"].replace(char, "")
-    out = correct + "\| " + side + "\n"
 
-    if answer == guess:
-        out += "Congrats you won!"
+    out = correct + "\| " + side + "\n"
 
     return out, answer == guess
 
@@ -110,12 +108,15 @@ def verify_guess(update, context):
 
     if has_won:
         keyboard = [
-            [InlineKeyboardButton("Record another", callback_data='track_exercise')],
+            [InlineKeyboardButton("Play again", callback_data='start_game')],
             [InlineKeyboardButton("Back", callback_data='return_menu')]
         ]
-        # reply_markup = InlineKeyboardMarkup(keyboard)
-        update.message.reply_text(context.user_data["guess_string"])  # , reply_markup=reply_markup)
-        return "win"
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        update.message.reply_text(context.user_data["guess_string"] + "\n\n" +
+                                  f"**You win\! You took {context.user_data['num_guesses']} guesses\.**",
+                                  parse_mode=ParseMode.MARKDOWN_V2,
+                                  reply_markup=reply_markup)
+        return "end"
     elif context.user_data["num_guesses"] > 5:
         keyboard = [
             [InlineKeyboardButton("Play again", callback_data='start_game')],
@@ -127,7 +128,7 @@ def verify_guess(update, context):
                                   f"\n Ran out of guesses\! The word was *{WORD}*\.",
                                   parse_mode=ParseMode.MARKDOWN_V2,
                                   reply_markup=reply_markup)
-        return "lose"
+        return "end"
     update.message.reply_text(context.user_data["guess_string"] + "\n\n" +
                               f"Guesses remaining: *{6 - context.user_data['num_guesses']}*\.\n"
                               "Characters remaining: \n" +
@@ -173,10 +174,7 @@ def main() -> None:
                     Filters.all, verify_guess
                 ),
             ],
-            "win": [
-
-            ],
-            "lose": [
+            "end": [
                 CallbackQueryHandler(start_game, pattern="start_game"),
                 CallbackQueryHandler(start, pattern="return_menu")
             ]
