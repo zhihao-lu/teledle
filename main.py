@@ -27,7 +27,7 @@ from telegram.ext import (
     CallbackQueryHandler
 )
 
-WORD = "EMILY"
+WORD = "CADET"
 
 CHOOSING, TYPING_REPLY, TYPING_CHOICE = range(3)
 
@@ -61,8 +61,9 @@ def start_game(update, context):
     context.user_data["num_guesses"] = 0
     context.user_data["guess_string"] = "Guess a 5 letter word\. Correct characters are in *bold*, correct characters "\
                                         "in the wrong position are in _italics_\. Wrong characters appear at the side\." \
-                                        " \n \_ \_ \_ \_ \_ \n"
+                                        "\n \_ \_ \_ \_ \_ \n"
     context.user_data["remaining_chars"] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    context.user_data["guessed_chars"] = ""
 
 
     query.edit_message_text(context.user_data["guess_string"], parse_mode=ParseMode.MARKDOWN_V2)
@@ -74,7 +75,7 @@ def generate_guess_string(answer, guess, context):
     guess = guess.upper()
 
     correct = ''
-    side = ''
+
     for idx, char in enumerate(guess):
         if char == answer[idx]:
             correct += f"*{char}*  "
@@ -82,10 +83,10 @@ def generate_guess_string(answer, guess, context):
             correct += f"_{char}_ "
         else:
             correct += "\_ "
-            side += f"{char} "
+            context.user_data["guessed_chars"] += char
         context.user_data["remaining_chars"] = context.user_data["remaining_chars"].replace(char, "")
 
-    out = correct + "\| " + side + "\n"
+    out = correct + "\| " + " ".join(set(context.user_data["guessed_chars"])) + "\n"
 
     return out, answer == guess
 
