@@ -27,7 +27,7 @@ from telegram.ext import (
     CallbackQueryHandler
 )
 
-WORD = "FLOOR"
+WORD = "DOWRY"
 
 CHOOSING, TYPING_REPLY, TYPING_CHOICE = range(3)
 
@@ -74,7 +74,7 @@ def start_game(update, context):
 def generate_guess_string(answer, guess, context):
     answer = answer.upper()
     guess = guess.upper()
-
+    answer_copy, guess_copy = answer, guess
     correct = [""] * 5
     for i in range(5):
         if guess[i] == answer[i]:
@@ -98,7 +98,7 @@ def generate_guess_string(answer, guess, context):
 
     out = " ".join(correct) + "\| " + " ".join(sorted(set(context.user_data["guessed_chars"]))) + "\n"
 
-    return out, answer == guess
+    return out, answer_copy == guess_copy
 
 
 def valid_guess(guess):
