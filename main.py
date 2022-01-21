@@ -51,6 +51,7 @@ def start(update: Update, context: CallbackContext) -> int:
 
 
 def show_back_home(update, context):
+    print("back home")
     query = update.callback_query
     query.answer()
 
@@ -138,7 +139,7 @@ def verify_guess(update, context, myself=False):
                                   reply_markup=reply_markup)
         if myself:
             context.bot.send_message(chat_id=id, text=f"Zhihao has guessed your word {word}!")
-        return "end"
+        return ConversationHandler.END
     elif context.user_data["num_guesses"] > 5:
         keyboard = [
             [InlineKeyboardButton("Play again", callback_data='start_game')],
@@ -153,7 +154,7 @@ def verify_guess(update, context, myself=False):
         if myself:
             context.bot.send_message(chat_id=id, text=f"Zhihao has guessed ran out of guesses while trying to guess "
                                                       f"your word {word}.")
-        return "end"
+        return ConversationHandler.END
     update.message.reply_text(context.user_data["guess_string"] + "\n\n" +
                               f"Guesses remaining: *{6 - context.user_data['num_guesses']}*\.\n"
                               "Characters remaining: \n" +
@@ -177,6 +178,7 @@ def ask_for_word(update, context):
 
 
 def save_word(update, context):
+    print("save_word")
     word = update.message.text
     tele = update.message.from_user.username
     id = update.message.from_user.id
@@ -198,6 +200,7 @@ def save_word(update, context):
 
 def zhihao_play(update, context):
     global my_words
+    print(my_words)
     if not my_words:
         keyboard = [
             [InlineKeyboardButton("Back", callback_data='return_menu')]
@@ -304,14 +307,6 @@ def main() -> None:
         states={
             "given": [
                 MessageHandler(Filters.all, save_word),
-            ],
-            "guess": [
-                MessageHandler(
-                    Filters.regex('.'), verify_guess
-                ),
-            ],
-            "end": [
-                CallbackQueryHandler(show_back_home, pattern="return_menu")
             ]
 
         },
@@ -331,7 +326,6 @@ def main() -> None:
                 ),
             ],
             "end": [
-                CallbackQueryHandler(start_game, pattern="start_game"),
                 CallbackQueryHandler(show_back_home, pattern="return_menu")
             ]
 
