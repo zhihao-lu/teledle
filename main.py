@@ -27,14 +27,15 @@ from telegram.ext import (
     CallbackQueryHandler
 )
 from functools import partial
+from words import WORDS, VALID_GUESSES
+import random
 
-WORD = "CADET"
 my_words = []
 ZHIHAO_WORD = ""
 CHOOSING, TYPING_REPLY, TYPING_CHOICE = range(3)
 
 reply_keyboard = [[InlineKeyboardButton("Yes", callback_data='start_game')],
-                  [InlineKeyboardButton("Test, don't click.", callback_data='test')],
+                  # [InlineKeyboardButton("Test, don't click.", callback_data='test')],
                   [InlineKeyboardButton("Give me a word to play", callback_data='give')]]
 markup = InlineKeyboardMarkup(reply_keyboard)
 
@@ -73,6 +74,7 @@ def start_game(update, context):
                                         "\n\_ \_ \_ \_ \_ \n"
     context.user_data["remaining_chars"] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
     context.user_data["guessed_chars"] = ""
+    context.user_data["current_word"] = random.choice(WORDS)
 
     query.edit_message_text(context.user_data["guess_string"], parse_mode=ParseMode.MARKDOWN_V2)
     return "guess"
@@ -110,9 +112,14 @@ def generate_guess_string(answer, guess, context):
 
 
 def valid_guess(guess):
-
+    if len(guess) != 5:
+        return False, "5 letters only!"
+    elif guess.lower() not in VALID_GUESSES:
+        print(guess.lower())
+        return False, "Real words only!"
     # clean weird characters like $&#^@
-    return len(guess) == 5
+
+    return True, ""
 
 
 def verify_guess(update, context, myself=False):
@@ -120,14 +127,15 @@ def verify_guess(update, context, myself=False):
     name = update.message.from_user.first_name
     print(f"{name} guessed: {guess}")
 
-    if not valid_guess(guess):
-        update.message.reply_text("5 letters only!")
+    valid, message = valid_guess(guess)
+    if not valid:
+        update.message.reply_text(message)
         return "guess"
     if myself:
         name, id, word = ZHIHAO_WORD
         context.bot.send_message(chat_id=id, text=f"Zhihao guessed {guess}.")
     else:
-        word = WORD
+        word = context.user_data["current_word"]
 
     context.user_data["num_guesses"] = context.user_data["num_guesses"] + 1
     guess_string, has_won = generate_guess_string(word, guess, context)
