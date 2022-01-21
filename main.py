@@ -26,13 +26,16 @@ from telegram.ext import (
     CallbackContext,
     CallbackQueryHandler
 )
+from functools import partial
 
 WORD = "DOWRY"
-
+my_words = []
+ZHIHAO_WORD = ""
 CHOOSING, TYPING_REPLY, TYPING_CHOICE = range(3)
 
 reply_keyboard = [[InlineKeyboardButton("Yes", callback_data='start_game')],
-                  [InlineKeyboardButton("Test, don't click.", callback_data='test')]]
+                  [InlineKeyboardButton("Test, don't click.", callback_data='test')],
+                  [InlineKeyboardButton("Give me a word to play", callback_data='give')]]
 markup = InlineKeyboardMarkup(reply_keyboard)
 
 
@@ -53,19 +56,18 @@ def show_back_home(update, context):
 
     text = "Welcome back. Play zhihao-dle"
     query.edit_message_text(text, reply_markup=markup)
-    return ""
+    return ConversationHandler.END
 
 
 def start_game(update, context):
     query = update.callback_query
     query.answer()
     context.user_data["num_guesses"] = 0
-    context.user_data["guess_string"] = "Guess a 5 letter word\. Correct characters are in *bold*, correct characters "\
+    context.user_data["guess_string"] = "Guess a 5 letter word\. Correct characters are in *bold*, correct characters " \
                                         "in the wrong position are in _italics_\. Wrong characters appear at the side\." \
-                                        "\n \_ \_ \_ \_ \_ \n"
+                                        "\n\_ \_ \_ \_ \_ \n"
     context.user_data["remaining_chars"] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
     context.user_data["guessed_chars"] = ""
-
 
     query.edit_message_text(context.user_data["guess_string"], parse_mode=ParseMode.MARKDOWN_V2)
     return "guess"
@@ -105,16 +107,22 @@ def valid_guess(guess):
     return len(guess) == 5
 
 
-def verify_guess(update, context):
+def verify_guess(update, context, myself=False):
     guess = update.message.text
     name = update.message.from_user.first_name
     print(f"{name} guessed: {guess}")
+
     if not valid_guess(guess):
         update.message.reply_text("5 letters only!")
         return "guess"
+    if myself:
+        name, id, word = ZHIHAO_WORD
+        context.bot.send_message(chat_id=id, text=f"Zhihao guessed {guess}.")
+    else:
+        word = WORD
 
     context.user_data["num_guesses"] = context.user_data["num_guesses"] + 1
-    guess_string, has_won = generate_guess_string(WORD, guess, context)
+    guess_string, has_won = generate_guess_string(word, guess, context)
 
     context.user_data["guess_string"] = context.user_data["guess_string"] + guess_string
 
@@ -128,6 +136,8 @@ def verify_guess(update, context):
                                   f"**You win\! You took {context.user_data['num_guesses']} guesses\.**",
                                   parse_mode=ParseMode.MARKDOWN_V2,
                                   reply_markup=reply_markup)
+        if myself:
+            context.bot.send_message(chat_id=id, text=f"Zhihao has guessed your word {word}!")
         return "end"
     elif context.user_data["num_guesses"] > 5:
         keyboard = [
@@ -140,6 +150,9 @@ def verify_guess(update, context):
                                   f"\n Ran out of guesses\! The word was *{WORD}*\.",
                                   parse_mode=ParseMode.MARKDOWN_V2,
                                   reply_markup=reply_markup)
+        if myself:
+            context.bot.send_message(chat_id=id, text=f"Zhihao has guessed ran out of guesses while trying to guess "
+                                                      f"your word {word}.")
         return "end"
     update.message.reply_text(context.user_data["guess_string"] + "\n\n" +
                               f"Guesses remaining: *{6 - context.user_data['num_guesses']}*\.\n"
@@ -147,32 +160,87 @@ def verify_guess(update, context):
                               " ".join(context.user_data["remaining_chars"]),
                               parse_mode=ParseMode.MARKDOWN_V2)  # , reply_markup=reply_markup)
     return "guess"
-    if "win":
-        return "win"
-    elif "too many guesses":
-        return "lose"
-    else:
-        return "guess"
+
+
+def ask_for_word(update, context):
+    query = update.callback_query
+    query.answer()
+    keyboard = [
+        [InlineKeyboardButton("Back", callback_data='return_menu')]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    query.edit_message_text(
+        text="Submit a 5 letter word for me to guess.", reply_markup=reply_markup
+    )
+
+    return "given"
+
+
+def save_word(update, context):
+    word = update.message.text
+    tele = update.message.from_user.username
+    id = update.message.from_user.id
+    if not valid_guess(word):
+        update.message.reply_text("5 letters only!")
+        return "given"
+
+    global my_words
+    my_words.append((tele, id, word))
+    print(f"{tele} has submitted a word.")
+
+    keyboard = [
+        [InlineKeyboardButton("Back", callback_data='return_menu')]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    update.message.reply_text(f"Submitted {word}.", reply_markup=reply_markup)
+    return ConversationHandler.END
+
+
+def zhihao_play(update, context):
+    global my_words
+    if not my_words:
+        keyboard = [
+            [InlineKeyboardButton("Back", callback_data='return_menu')]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        update.message.reply_text(f"Submitted", reply_markup=reply_markup)
+        return "end"
+    context.user_data["num_guesses"] = 0
+    context.user_data["guess_string"] = "Guess a 5 letter word\. Correct characters are in *bold*, correct characters " \
+                                        "in the wrong position are in _italics_\. Wrong characters appear at the side\." \
+                                        "\n\_ \_ \_ \_ \_ \n"
+    context.user_data["remaining_chars"] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    context.user_data["guessed_chars"] = ""
+    update.message.reply_text(context.user_data["guess_string"], parse_mode=ParseMode.MARKDOWN_V2)
+    global ZHIHAO_WORD
+    ZHIHAO_WORD = my_words.pop(0)
+    print(f"You are guessing a word from {ZHIHAO_WORD[0]}")
+    context.bot.send_message(chat_id=ZHIHAO_WORD[1], text=f"Zhihao has started guessing your word {ZHIHAO_WORD[2]}")
+
+    return "guess"
+
 
 reply_keyboard1 = [
-        [InlineKeyboardButton('q', callback_data='q'), InlineKeyboardButton('w', callback_data='w')],
-        [InlineKeyboardButton('a', callback_data='a'), InlineKeyboardButton('s', callback_data='s')],
-        [InlineKeyboardButton('z', callback_data='z')],
-    ]
+    [InlineKeyboardButton('q', callback_data='q'), InlineKeyboardButton('w', callback_data='w')],
+    [InlineKeyboardButton('a', callback_data='a'), InlineKeyboardButton('s', callback_data='s')],
+    [InlineKeyboardButton('z', callback_data='z')],
+]
 
 pressed = '1'
 s = "u r gay "
 stack = []
+
+
 def test_start(update, context):
     query = update.callback_query
     reply_keyboard = [[InlineKeyboardButton(char, callback_data=char) for char in 'qwertyuiop' if char not in pressed],
                       [InlineKeyboardButton(char, callback_data=char) for char in 'asdfghjkl' if char not in pressed],
                       [InlineKeyboardButton(char, callback_data=char) for char in 'zxcvbnm' if char not in pressed]]
 
-
     markup = InlineKeyboardMarkup(reply_keyboard)
     query.edit_message_text("u r gay ", reply_markup=markup)
     return "continue"
+
 
 def test_start2(update, context):
     query = update.callback_query
@@ -192,22 +260,12 @@ def test_start2(update, context):
     reply_keyboard = [[InlineKeyboardButton(char, callback_data=char) for char in 'qwertyuiop' if char not in stack],
                       [InlineKeyboardButton(char, callback_data=char) for char in 'asdfghjkl' if char not in stack],
                       [InlineKeyboardButton(char, callback_data=char) for char in 'zxcvbnm' if char not in stack],
-                      [InlineKeyboardButton("Submit", callback_data="submit"), InlineKeyboardButton("Delete", callback_data="delete")]]
-
+                      [InlineKeyboardButton("Submit", callback_data="submit"),
+                       InlineKeyboardButton("Delete", callback_data="delete")]]
 
     markup = InlineKeyboardMarkup(reply_keyboard)
     query.edit_message_text(s, reply_markup=markup)
     return "continue"
-
-
-def done(update: Update, context: CallbackContext) -> int:
-    """Display the gathered info and end the conversation."""
-    user_data = context.user_data
-    if 'choice' in user_data:
-        del user_data['choice']
-
-    user_data.clear()
-    return ConversationHandler.END
 
 
 def main() -> None:
@@ -219,9 +277,9 @@ def main() -> None:
     dispatcher = updater.dispatcher
 
     dispatcher.add_handler(CallbackQueryHandler(show_back_home, pattern="return_menu"))
+    dispatcher.add_handler(CommandHandler("start", start))
     conv_handler = ConversationHandler(
-        entry_points=[CommandHandler('start', start),
-                      CallbackQueryHandler(start, pattern="start_game")],
+        entry_points=[CallbackQueryHandler(start_game, pattern="start_game")],
         states={
             "start": [
                 CallbackQueryHandler(start_game, pattern="start_game"),
@@ -241,11 +299,53 @@ def main() -> None:
 
     )
 
+    submit_word_handler = ConversationHandler(
+        entry_points=[CallbackQueryHandler(ask_for_word, pattern="give")],
+        states={
+            "given": [
+                MessageHandler(Filters.all, save_word),
+            ],
+            "guess": [
+                MessageHandler(
+                    Filters.regex('.'), verify_guess
+                ),
+            ],
+            "end": [
+                CallbackQueryHandler(show_back_home, pattern="return_menu")
+            ]
+
+        },
+        fallbacks=[MessageHandler(Filters.regex('^Done$'), start)],
+
+    )
+
+    zhihao_handler = ConversationHandler(
+        entry_points=[CommandHandler("zhihao", zhihao_play)],
+        states={
+            "given": [
+                MessageHandler(Filters.all, save_word),
+            ],
+            "guess": [
+                MessageHandler(
+                    Filters.regex('.'), partial(verify_guess, myself=True)
+                ),
+            ],
+            "end": [
+                CallbackQueryHandler(start_game, pattern="start_game"),
+                CallbackQueryHandler(show_back_home, pattern="return_menu")
+            ]
+
+        },
+        fallbacks=[MessageHandler(Filters.regex('^Done$'), start)],
+
+    )
+    dispatcher.add_handler(zhihao_handler)
     dispatcher.add_handler(conv_handler)
+    dispatcher.add_handler(submit_word_handler)
 
     test_conv_handler = ConversationHandler(
         entry_points=[
-                      CallbackQueryHandler(test_start, pattern="test")],
+            CallbackQueryHandler(test_start, pattern="test")],
         states={
             "continue": [
                 CallbackQueryHandler(test_start2, pattern=".|delete")
