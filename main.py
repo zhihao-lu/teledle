@@ -16,7 +16,7 @@ import os
 import logging
 from typing import Dict
 
-from telegram import InlineKeyboardMarkup, Update, ReplyKeyboardRemove, InlineKeyboardButton, ParseMode
+from telegram import InlineKeyboardMarkup, Update, ReplyKeyboardMarkup, InlineKeyboardButton, ParseMode
 from telegram.ext import (
     Updater,
     CommandHandler,
@@ -27,11 +27,12 @@ from telegram.ext import (
     CallbackQueryHandler
 )
 
-WORD = "CADET"
+WORD = "FLOOR"
 
 CHOOSING, TYPING_REPLY, TYPING_CHOICE = range(3)
 
-reply_keyboard = [[InlineKeyboardButton("Yes", callback_data='start_game')]]
+reply_keyboard = [[InlineKeyboardButton("Yes", callback_data='start_game')],
+                  [InlineKeyboardButton("Test, don't click.", callback_data='test')]]
 markup = InlineKeyboardMarkup(reply_keyboard)
 
 
@@ -74,19 +75,28 @@ def generate_guess_string(answer, guess, context):
     answer = answer.upper()
     guess = guess.upper()
 
-    correct = ''
+    correct = [""] * 5
+    for i in range(5):
+        if guess[i] == answer[i]:
+            correct[i] = f"*{guess[i]}*"
+            answer = answer[:i] + "_" + answer[i + 1:]
+            guess = guess[:i] + "." + guess[i + 1:]
+            context.user_data["remaining_chars"] = context.user_data["remaining_chars"].replace(guess[i], "")
 
-    for idx, char in enumerate(guess):
-        if char == answer[idx]:
-            correct += f"*{char}*  "
-        elif char in answer:
-            correct += f"_{char}_ "
+    for idx, val in enumerate(correct):
+        if val:
+            continue
+        guess_char = guess[idx]
+        if not val and guess_char in answer:
+            correct[idx] = f"_{guess_char}_"
+            answer = answer.replace(guess_char, "_", 1)
+            guess = guess.replace(guess_char, ".", 1)
         else:
-            correct += "\_ "
-            context.user_data["guessed_chars"] += char
-        context.user_data["remaining_chars"] = context.user_data["remaining_chars"].replace(char, "")
+            correct[idx] = f"\_"
+            context.user_data["guessed_chars"] += guess_char
+        context.user_data["remaining_chars"] = context.user_data["remaining_chars"].replace(guess_char, "")
 
-    out = correct + "\| " + " ".join(set(context.user_data["guessed_chars"])) + "\n"
+    out = " ".join(correct) + "\| " + " ".join(sorted(set(context.user_data["guessed_chars"]))) + "\n"
 
     return out, answer == guess
 
@@ -97,7 +107,8 @@ def valid_guess(guess):
 
 def verify_guess(update, context):
     guess = update.message.text
-
+    name = update.message.from_user.first_name
+    print(f"{name} guessed: {guess}")
     if not valid_guess(guess):
         update.message.reply_text("5 letters only!")
         return "guess"
@@ -143,6 +154,51 @@ def verify_guess(update, context):
     else:
         return "guess"
 
+reply_keyboard1 = [
+        [InlineKeyboardButton('q', callback_data='q'), InlineKeyboardButton('w', callback_data='w')],
+        [InlineKeyboardButton('a', callback_data='a'), InlineKeyboardButton('s', callback_data='s')],
+        [InlineKeyboardButton('z', callback_data='z')],
+    ]
+
+pressed = '1'
+s = "u r gay "
+stack = []
+def test_start(update, context):
+    query = update.callback_query
+    reply_keyboard = [[InlineKeyboardButton(char, callback_data=char) for char in 'qwertyuiop' if char not in pressed],
+                      [InlineKeyboardButton(char, callback_data=char) for char in 'asdfghjkl' if char not in pressed],
+                      [InlineKeyboardButton(char, callback_data=char) for char in 'zxcvbnm' if char not in pressed]]
+
+
+    markup = InlineKeyboardMarkup(reply_keyboard)
+    query.edit_message_text("u r gay ", reply_markup=markup)
+    return "continue"
+
+def test_start2(update, context):
+    query = update.callback_query
+    query.answer()
+    text = query.data
+    global pressed
+    global s
+    global stack
+    if text == "delete" and stack:
+        text = stack.pop()
+        s = s.replace(text, "")
+    elif text != "delete":
+        stack.append(text)
+        s += text
+    print(stack)
+
+    reply_keyboard = [[InlineKeyboardButton(char, callback_data=char) for char in 'qwertyuiop' if char not in stack],
+                      [InlineKeyboardButton(char, callback_data=char) for char in 'asdfghjkl' if char not in stack],
+                      [InlineKeyboardButton(char, callback_data=char) for char in 'zxcvbnm' if char not in stack],
+                      [InlineKeyboardButton("Submit", callback_data="submit"), InlineKeyboardButton("Delete", callback_data="delete")]]
+
+
+    markup = InlineKeyboardMarkup(reply_keyboard)
+    query.edit_message_text(s, reply_markup=markup)
+    return "continue"
+
 
 def done(update: Update, context: CallbackContext) -> int:
     """Display the gathered info and end the conversation."""
@@ -172,12 +228,12 @@ def main() -> None:
             ],
             "guess": [
                 MessageHandler(
-                    Filters.all, verify_guess
+                    Filters.regex('.'), verify_guess
                 ),
             ],
             "end": [
                 CallbackQueryHandler(start_game, pattern="start_game"),
-                CallbackQueryHandler(start, pattern="return_menu")
+                CallbackQueryHandler(show_back_home, pattern="return_menu")
             ]
 
         },
@@ -186,6 +242,27 @@ def main() -> None:
     )
 
     dispatcher.add_handler(conv_handler)
+
+    test_conv_handler = ConversationHandler(
+        entry_points=[
+                      CallbackQueryHandler(test_start, pattern="test")],
+        states={
+            "continue": [
+                CallbackQueryHandler(test_start2, pattern=".|delete")
+            ],
+            "guess": [
+                MessageHandler(
+                    Filters.all, verify_guess
+                ),
+            ]
+
+        },
+        fallbacks=[MessageHandler(Filters.regex('^Done$'), start),
+                   CommandHandler('start', start)],
+
+    )
+
+    dispatcher.add_handler(test_conv_handler)
 
     # Start the Bot
     updater.start_polling()
