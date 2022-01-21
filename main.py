@@ -106,7 +106,7 @@ def generate_guess_string(answer, guess, context):
             context.user_data["guessed_chars"] += guess_char
         context.user_data["remaining_chars"] = context.user_data["remaining_chars"].replace(guess_char, "")
 
-    out = " ".join(correct) + "\| " + " ".join(sorted(set(context.user_data["guessed_chars"]))) + "\n"
+    out = " ".join(correct) + " \| " + " ".join(sorted(set(context.user_data["guessed_chars"]))) + "\n"
 
     return out, answer_copy == guess_copy
 
@@ -115,7 +115,6 @@ def valid_guess(guess):
     if len(guess) != 5:
         return False, "5 letters only!"
     elif guess.lower() not in VALID_GUESSES:
-        print(guess.lower())
         return False, "Real words only!"
     # clean weird characters like $&#^@
 
@@ -125,17 +124,20 @@ def valid_guess(guess):
 def verify_guess(update, context, myself=False):
     guess = update.message.text
     name = update.message.from_user.first_name
-    print(f"{name} guessed: {guess}")
 
     valid, message = valid_guess(guess)
     if not valid:
         update.message.reply_text(message)
         return "guess"
     if myself:
-        name, id, word = ZHIHAO_WORD
+        other_name, id, word = ZHIHAO_WORD
         context.bot.send_message(chat_id=id, text=f"Zhihao guessed {guess}.")
     else:
         word = context.user_data["current_word"]
+
+    if not myself:
+        # name is wrong
+        print(f"{name} guessed: {guess} on guess number {context.user_data['num_guesses']+1}, answer is {word}")
 
     context.user_data["num_guesses"] = context.user_data["num_guesses"] + 1
     guess_string, has_won = generate_guess_string(word, guess, context)
