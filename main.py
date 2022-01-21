@@ -28,7 +28,7 @@ from telegram.ext import (
 )
 from functools import partial
 
-WORD = "TIARA"
+WORD = "CADET"
 my_words = []
 ZHIHAO_WORD = ""
 CHOOSING, TYPING_REPLY, TYPING_CHOICE = range(3)
@@ -56,6 +56,11 @@ def show_back_home(update, context):
 
     text = "Welcome back. Play zhihao-dle"
     query.edit_message_text(text, reply_markup=markup)
+    return ConversationHandler.END
+
+
+def cancel(update, context):
+    # context.update_queue.append(update)
     return ConversationHandler.END
 
 
@@ -105,6 +110,8 @@ def generate_guess_string(answer, guess, context):
 
 
 def valid_guess(guess):
+
+    # clean weird characters like $&#^@
     return len(guess) == 5
 
 
@@ -148,7 +155,7 @@ def verify_guess(update, context, myself=False):
         reply_markup = InlineKeyboardMarkup(keyboard)
 
         update.message.reply_text(context.user_data["guess_string"] + "\n\n" +
-                                  f"\n Ran out of guesses\! The word was *{WORD}*\.",
+                                  f"\n Ran out of guesses\! The word was *{word}*\.",
                                   parse_mode=ParseMode.MARKDOWN_V2,
                                   reply_markup=reply_markup)
         if myself:
@@ -277,8 +284,8 @@ def main() -> None:
     # Get the dispatcher to register handlers
     dispatcher = updater.dispatcher
 
-    dispatcher.add_handler(CallbackQueryHandler(show_back_home, pattern="return_menu"))
-    dispatcher.add_handler(CommandHandler("start", start))
+    dispatcher.add_handler(CallbackQueryHandler(show_back_home, pattern="return_menu"), 1)
+    dispatcher.add_handler(CommandHandler("start", start), 1)
     conv_handler = ConversationHandler(
         entry_points=[CallbackQueryHandler(start_game, pattern="start_game")],
         states={
@@ -287,7 +294,7 @@ def main() -> None:
             ],
             "guess": [
                 MessageHandler(
-                    Filters.regex('.'), verify_guess
+                    Filters.text & ~Filters.command, verify_guess
                 ),
             ],
             "end": [
@@ -296,7 +303,7 @@ def main() -> None:
             ]
 
         },
-        fallbacks=[MessageHandler(Filters.regex('^Done$'), start)],
+        fallbacks=[MessageHandler(Filters.command, cancel)],
 
     )
 
@@ -308,7 +315,7 @@ def main() -> None:
             ]
 
         },
-        fallbacks=[MessageHandler(Filters.regex('^Done$'), start)],
+        fallbacks=[MessageHandler(Filters.command, cancel)],
 
     )
 
@@ -328,12 +335,12 @@ def main() -> None:
             ]
 
         },
-        fallbacks=[MessageHandler(Filters.regex('^Done$'), start)],
+        fallbacks=[MessageHandler(Filters.command, cancel)],
 
     )
-    dispatcher.add_handler(zhihao_handler)
-    dispatcher.add_handler(conv_handler)
-    dispatcher.add_handler(submit_word_handler)
+    dispatcher.add_handler(zhihao_handler, 2)
+    dispatcher.add_handler(conv_handler, 2)
+    dispatcher.add_handler(submit_word_handler, 2)
 
     test_conv_handler = ConversationHandler(
         entry_points=[
@@ -349,8 +356,7 @@ def main() -> None:
             ]
 
         },
-        fallbacks=[MessageHandler(Filters.regex('^Done$'), start),
-                   CommandHandler('start', start)],
+        fallbacks=[MessageHandler(Filters.command, cancel)]
 
     )
 
