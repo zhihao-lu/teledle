@@ -28,7 +28,7 @@ from telegram.ext import (
 )
 from functools import partial
 
-WORD = "DOWRY"
+WORD = "TIARA"
 my_words = []
 ZHIHAO_WORD = ""
 CHOOSING, TYPING_REPLY, TYPING_CHOICE = range(3)
@@ -51,7 +51,6 @@ def start(update: Update, context: CallbackContext) -> int:
 
 
 def show_back_home(update, context):
-    print("back home")
     query = update.callback_query
     query.answer()
 
@@ -82,9 +81,10 @@ def generate_guess_string(answer, guess, context):
     for i in range(5):
         if guess[i] == answer[i]:
             correct[i] = f"*{guess[i]}*"
+            context.user_data["remaining_chars"] = context.user_data["remaining_chars"].replace(guess[i], "")
             answer = answer[:i] + "_" + answer[i + 1:]
             guess = guess[:i] + "." + guess[i + 1:]
-            context.user_data["remaining_chars"] = context.user_data["remaining_chars"].replace(guess[i], "")
+
 
     for idx, val in enumerate(correct):
         if val:
@@ -178,7 +178,6 @@ def ask_for_word(update, context):
 
 
 def save_word(update, context):
-    print("save_word")
     word = update.message.text
     tele = update.message.from_user.username
     id = update.message.from_user.id
@@ -200,7 +199,6 @@ def save_word(update, context):
 
 def zhihao_play(update, context):
     global my_words
-    print(my_words)
     if not my_words:
         keyboard = [
             [InlineKeyboardButton("Back", callback_data='return_menu')]
