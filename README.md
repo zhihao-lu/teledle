@@ -1,3 +1,3 @@
-# suite
+# teledle
 
-Telegram bot to help my suitemates track exercises done and also sends out reminders for when exams are ongoing to be quiet. 
+Telegram bot version of Wordle. You can play unlimited Wordle and also submit words to your friends.
